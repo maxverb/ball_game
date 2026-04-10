@@ -1,0 +1,76 @@
+SWING .RES resource inventory
+==============================
+
+file                  size  sub      w x    h  dataLen   frames  notes
+--------------------------------------------------------------------------------
+AUSGLOW.RES           3368    7     52 x   52      1674      0  particle / fx (FUNKEN, FLASH, FLARE)
+BLATT.RES             6346    4     22 x    9       107      3  small iconic sprite (BLATT, BLOCK, CD)
+BLOCK.RES             3242    4     42 x   42      1349      3  small iconic sprite (BLATT, BLOCK, CD)
+BLOCKL.RES            8944    4     18 x   42       549      3  small iconic sprite (BLATT, BLOCK, CD)
+BLOCKR.RES            8928    4     18 x   42       548      3  small iconic sprite (BLATT, BLOCK, CD)
+BRUTZA.RES           44670    7     26 x   34       412      0  particle / fx (FUNKEN, FLASH, FLARE)
+BRUTZB.RES          146602    7     45 x   66      1369      0  particle / fx (FUNKEN, FLASH, FLARE)
+BRUTZEL.RES          44670    7     26 x   34       412      0  particle / fx (FUNKEN, FLASH, FLARE)
+BUTTON.RES            9256    2     25 x   25       625      3  multi-frame animation (WIPPE, BUTTON)
+CD.RES                1882    4     32 x   32       931      3  small iconic sprite (BLATT, BLOCK, CD)
+CLOSE.RES            28124    6    321 x   22      7065      3  ?
+COLOR.RES            60888    7     30 x   30        60      0  particle / fx (FUNKEN, FLASH, FLARE)
+CORAIN.RES          150812    7     42 x   43      1033      0  particle / fx (FUNKEN, FLASH, FLARE)
+EXPLOA.RES           63774    7     33 x   32       582      0  particle / fx (FUNKEN, FLASH, FLARE)
+EXPLOB.RES          382252    7    150 x  143      3921      0  particle / fx (FUNKEN, FLASH, FLARE)
+EXTRAS.RES         2467976   -         (non-standard header, magic=0x0026)
+FLARE.RES            44316    7    101 x   98      2764      0  particle / fx (FUNKEN, FLASH, FLARE)
+FLASH.RES            38732    7     24 x   27        54      0  particle / fx (FUNKEN, FLASH, FLARE)
+FONTS.RES            63947   -         (non-standard header, magic=0x0003)
+FUNKEN1.RES           3864    7      7 x    6        47      0  particle / fx (FUNKEN, FLASH, FLARE)
+FUNKEN2.RES           1502    7      8 x    8        66      0  particle / fx (FUNKEN, FLASH, FLARE)
+FUNKEN3.RES           5352    7     10 x    7        71      0  particle / fx (FUNKEN, FLASH, FLARE)
+GAMMA.RES           262176    3    225 x   60     13500      0  meter / gauge (SKALA)
+HEADS.RES            18832    4     32 x   32       887      3  small iconic sprite (BLATT, BLOCK, CD)
+HELPMODE.RES       7435338   -         (non-standard header, magic=0x003a)
+KEXPLO.RES          194856    7     14 x   15       199      0  particle / fx (FUNKEN, FLASH, FLARE)
+KRANBURN.RES        236770    4     75 x   60      3704      3  small iconic sprite (BLATT, BLOCK, CD)
+KRANMSK.RES         116218    1     76 x   61       301      3  single-frame big sprite (KRANMSK, NORMAL?)
+KRANNORM.RES       1420786    1     76 x   61      3713      3  single-frame big sprite (KRANMSK, NORMAL?)
+LGLOW.RES            76980    7    425 x   31      1597      0  particle / fx (FUNKEN, FLASH, FLARE)
+LIGHT.RES           127760    3    134 x  120     16080      0  meter / gauge (SKALA)
+LOAD.RES            285752    4    116 x  116      6000      3  small iconic sprite (BLATT, BLOCK, CD)
+MESSAGE.RES          64004    6    320 x  100     31992      3  ?
+MULTI.RES            57216    3    123 x   39      4797      0  meter / gauge (SKALA)
+NETLIB.RES          151928    6    259 x  111     22251      3  ?
+NETMULTI.RES         48420    3    155 x   52      8060      0  meter / gauge (SKALA)
+PAUSE.RES           815278    4    142 x  130      8230      3  small iconic sprite (BLATT, BLOCK, CD)
+POEFF.RES            38950    7      2 x    2         4      0  particle / fx (FUNKEN, FLASH, FLARE)
+QUIT.RES            174078    2    323 x   37     11951      3  multi-frame animation (WIPPE, BUTTON)
+REQUEST.RES         514320    2    204 x  337     68748      3  multi-frame animation (WIPPE, BUTTON)
+SHOCK.RES            50914    7      2 x    2         5      0  particle / fx (FUNKEN, FLASH, FLARE)
+SINGLE.RES           51540    3    156 x   55      8580      0  meter / gauge (SKALA)
+SKALA.RES            10648    3    104 x   26      2704      0  meter / gauge (SKALA)
+SMBACK.RES          930100    3    300 x  310     93000      0  meter / gauge (SKALA)
+SMLMENU.RES         182656    6    284 x  308     50389      3  ?
+SMOKEL.RES           14580    7     17 x   31       304      0  particle / fx (FUNKEN, FLASH, FLARE)
+SMOKER.RES           14580    7     17 x   31       304      0  particle / fx (FUNKEN, FLASH, FLARE)
+SMRM1.RES           283220    6    284 x  159     25368      3  ?
+SMRM2.RES           137664    6    243 x  312     33552      3  ?
+SMRM3.RES            68244    6    174 x  162     16393      3  ?
+SMRM4.RES           153916    6    280 x  265     36752      3  ?
+SMRM5.RES           271836    6    288 x  314     48445      3  ?
+SPLITT1.RES         132022    7     28 x   29       712      0  particle / fx (FUNKEN, FLASH, FLARE)
+SPLITT2.RES         269234    7     28 x   29       712      0  particle / fx (FUNKEN, FLASH, FLARE)
+STARTMEN.RES        605766    3    279 x  248     69192      0  meter / gauge (SKALA)
+TINTMSK.RES         160640    0     50 x   50      2500      0  ?
+TWIRL2.RES           55524    7     31 x   30       679      0  particle / fx (FUNKEN, FLASH, FLARE)
+TWIST.RES           289098    7     62 x  272      9035      0  particle / fx (FUNKEN, FLASH, FLARE)
+WIPPE.RES            17276    2     56 x    6       336      3  multi-frame animation (WIPPE, BUTTON)
+CLOSE.RES            28124    6    321 x   22      7065      3  ?
+MULTI.RES            57216    3    123 x   39      4797      0  meter / gauge (SKALA)
+SINGLE.RES           51540    3    156 x   55      8580      0  meter / gauge (SKALA)
+
+Inspected 62 .RES files.
+
+Subtype legend:
+  1: single-frame big sprite (KRANMSK, NORMAL?)
+  2: multi-frame animation (WIPPE, BUTTON)
+  3: meter / gauge (SKALA)
+  4: small iconic sprite (BLATT, BLOCK, CD)
+  7: particle / fx (FUNKEN, FLASH, FLARE)
