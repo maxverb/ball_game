@@ -1,0 +1,46 @@
+PROJECT   = showset
+
+OBJS    = showset.obj graphasm.obj graphik.obj newalloc.obj
+
+LIBS    = mss.lib vidlib.lib
+
+CC    = wcc386
+
+#CFLAGS    = -zp4 -5r -fp5 -w4 -s -Iinc -zq -d2
+
+CFLAGS    = -zp4 -5r -fp5 -w4 -s -Iinc -zq
+
+AS    = tasm
+
+ASFLAGS   = /l /c /m2 /zi /mx /D_DOS4GW /D__DOS__ /D__FLAT__ /t
+
+.c.obj    : .AUTODEPEND
+      @set _ARGS=$(CFLAGS) $^&.c
+      @echo   Compiling $*.c
+      @$(CC) @_ARGS /fo=$*.obj
+
+.asm.obj  : .AUTODEPEND
+      @echo  Assembling $*.asm
+      @$(AS) $(ASFLAGS) $*.asm,,$*.LST
+
+$(PROJECT).EXE  : $(OBJS) $(PROJECT).lnk
+      @echo.
+      @echo Linking $(PROJECT).EXE
+      @wlink @$(PROJECT).lnk
+
+
+
+# Link response file
+#
+
+$(PROJECT).lnk  : makefile
+      @echo.
+      @echo Creating Link-File
+      @echo.
+      @echo name $(PROJECT).EXE >$(PROJECT).LNK
+      @echo system dos4g >>$(PROJECT).LNK
+#      @echo DEBUG ALL >>$(PROJECT).LNK
+      @echo option map,dosseg,caseexact,quiet,stack=64k >>$(PROJECT).LNK
+      @for %i in ($(OBJS)) do @echo file %i >>$(PROJECT).LNK
+      @for %i in ($(LIBS)) do @echo library %i >>$(PROJECT).LNK
+
