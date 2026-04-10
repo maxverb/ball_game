@@ -1,23 +1,22 @@
-name: Deploy SWING web to GitHub Pages
+name: CI
+
+# Since GitHub Pages is configured as "Deploy from a branch" (main /) and
+# the built Vite output lives at the repo root as `index.html`, `build/`
+# and `assets/`, we do NOT deploy from a workflow. This file just runs
+# the type-check, unit tests and vite build as a PR safety net.
 
 on:
   push:
     branches:
       - main
       - "claude/**"
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-# Allow only one concurrent deployment, skipping runs queued between the
-# run in-progress and latest queued. Don't cancel the in-progress run so
-# we don't leave Pages in a half-deployed state.
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
 
 jobs:
   build:
@@ -51,22 +50,3 @@ jobs:
       - name: Build web app
         working-directory: web
         run: npx vite build
-
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: web/dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4

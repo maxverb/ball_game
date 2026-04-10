@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SWING — web remake</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #0c0c14;
+        color: #d4d4dc;
+        font-family: "Lucida Console", "Consolas", monospace;
+        overflow: hidden;
+      }
+      #app {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      canvas {
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        box-shadow: 0 0 40px rgba(80, 110, 200, 0.35);
+      }
+      #hint {
+        position: fixed;
+        bottom: 12px;
+        left: 12px;
+        font-size: 12px;
+        opacity: 0.55;
+        pointer-events: none;
+      }
+    </style>
+    <script type="module" crossorigin src="./build/index-D6EqV-L9.js"></script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hint">
+      ← → move crane &nbsp;·&nbsp; ↓ / Enter drop &nbsp;·&nbsp; S sphere skin &nbsp;·&nbsp; P pause &nbsp;·&nbsp; M mute
+    </div>
+  </body>
+</html>

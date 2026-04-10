@@ -1,0 +1,101 @@
+{
+  "geomet": {
+    "name": "Geometrik",
+    "rgb": [
+      30,
+      75,
+      32
+    ],
+    "frameCount": 46
+  },
+  "kugel6": {
+    "name": "Atome",
+    "rgb": [
+      71,
+      69,
+      31
+    ],
+    "frameCount": 9
+  },
+  "kugel7": {
+    "name": "Glas",
+    "rgb": [
+      24,
+      65,
+      12
+    ],
+    "frameCount": 46
+  },
+  "kugel8": {
+    "name": "Formen",
+    "rgb": [
+      24,
+      65,
+      12
+    ],
+    "frameCount": 46
+  },
+  "kugel9": {
+    "name": "Kontrast",
+    "rgb": [
+      69,
+      161,
+      141
+    ],
+    "frameCount": 14
+  },
+  "kugelb": {
+    "name": "S2000 Team",
+    "rgb": [
+      0,
+      0,
+      0
+    ],
+    "frameCount": 0
+  },
+  "kugeld": {
+    "name": "Juwelen",
+    "rgb": [
+      85,
+      154,
+      22
+    ],
+    "frameCount": 2
+  },
+  "normal": {
+    "name": "standard",
+    "rgb": [
+      5,
+      59,
+      90
+    ],
+    "frameCount": 46
+  },
+  "people": {
+    "name": "people",
+    "rgb": [
+      53,
+      72,
+      21
+    ],
+    "frameCount": 1
+  },
+  "plastic": {
+    "name": "plastic",
+    "rgb": [
+      0,
+      103,
+      0
+    ],
+    "frameCount": 46
+  },
+  "splitt": {
+    "name": "Splitt",
+    "rgb": [
+      57,
+      69,
+      56
+    ],
+    "frameCount": 46
+  }
+}
