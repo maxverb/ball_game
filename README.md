@@ -44,17 +44,22 @@ Summary of the state today:
 
 ## What the web game supports today
 
-- Crane movement with cursor keys
-- Ball dropping with ↓ / Enter / Space
-- Match-3 detection (horizontal, vertical, both diagonals)
-- See-saw launch mechanic driven by weight difference (the signature
-  SWING physics)
-- Scoring with 2×/3×/4× "Bonus" multiplier lamps (per `README.TXT`)
-- Heart → bomb wrap-around + silver-star triple → board clear
-- Original `.wav` sound effects playing through the Web Audio API
-- Game over + background from the original `HINTERH.SWG`
-- Procedural sphere/crane/see-saw sprites (swapped in for original art
-  once the `.SET`/`.RES` decoders are done)
+- **Main menu** with high score, help, and a blinking "press SPACE" prompt
+- **Crane** movement with cursor keys + ball dropping with ↓ / Enter / Space
+- **Match-3** detection (horizontal, vertical, both diagonals)
+- **See-saw launch** driven by the weight difference between the two pans
+  (the signature SWING mechanic from `README.TXT`)
+- **Scoring** with 2×/3×/4× "Bonus" multiplier lamps
+- **Heart** → bomb wrap-around + **silver-star** triple → board clear
+- **Level progression** every 8 cleared matches, with a "level up" chime
+- **Next-ball preview** in the HUD
+- **High score** persisted in `localStorage`
+- **Pause** (P) and **mute** (M) with on-screen overlay
+- **Game over** screen with restart prompt
+- Original `.wav` sound effects via the Web Audio API
+- `HINTERH.SWG` background behind the playfield
+- Procedural ball/crane/see-saw sprites (will be swapped for extracted
+  art once the `.SET`/`.RES` decoders are complete)
 
 ## Why a reimplementation and not a port?
 

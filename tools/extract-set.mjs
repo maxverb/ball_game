@@ -1,29 +1,47 @@
 #!/usr/bin/env node
 // Analyzer + best-effort extractor for KUGELN/*.SET sphere-skin files.
 //
-// Header layout we've confirmed across NORMAL / GEOMET / PLASTIC / KUGEL6:
+// Header layout confirmed across NORMAL / GEOMET / PLASTIC / PEOPLE /
+// KUGEL6..9 / KUGELB / KUGELD / SPLITT:
+//
 //   0x00..0x13  magic "Gib mir 'ne Kugel\n\0\x1A"     (20 bytes)
 //   0x14..0x23  set name, null-padded ASCII           (16 bytes)
 //                 e.g. "standard", "Geometrik", "plastic", "Atome"
 //   0x24..0x27  u32  timestamp / hash
 //   0x28..0x2B  u32  zero
-//   0x2C..0x2F  u32  data length
-//   0x30..0x31  u16  0x0014 (20, probably header-size marker)
-//   0x32..0x33  u16  flags  (0x0F01 or 0x0F04)
-//   0x34..0x35  u16  frame width   = 0x001E (30)
-//   0x36..0x37  u16  frame height  = 0x001E (30)
-//   0x38..0x3B  u32  something per-frame (812 or 784)
-//   0x3C..0x3F  u32  always 3    (group count? colour count?)
+//   0x2C..0x2F  u32  dataLen (covers 0x30 .. 0x30+dataLen-1)
+//   0x30..0x31  u16  0x0014   (header size marker)
+//   0x32..0x33  u16  flags    (0x0F01 or 0x0F04)
+//   0x34..0x35  u16  frameW   = 30
+//   0x36..0x37  u16  frameH   = 30
+//   0x38..0x3B  u32  perFrame (≈ 812 or 784 — per-frame byte slot size)
+//   0x3C..0x3F  u32  always 3 (likely the number of "groups", maybe
+//                             colour groups that each cycle 31 frames)
 //   0x40..0x43  u32  zero
-//   0x44..      start of per-scanline RLE-ish payload
+//   0x44..      RLE frame payload
 //
-// The payload uses a "(skip_left u16, draw_count u16, pixels[count])"
-// per-scanline format, but frame delimiters are still being worked out.
-// For now this tool:
+// Additional structure we worked out but have not fully decoded:
+//
+// * `fileSize - dataLen = 3081` bytes for EVERY .SET — there's a fixed
+//   3081-byte secondary resource after the frame payload. Its content
+//   starts with more RLE-looking data and contains the signature
+//   `0003 0xE005 0001` which also appears at the start of FONTS.RES, so
+//   we suspect it is a bitmap font or a helper atlas.
+// * `dataLen - (0x44 - 0x30)` ≈ 93 × 812 for NORMAL → each set holds
+//   ~93 frames. For a 3-group layout that's 31 frames per group, which
+//   is consistent with a smooth 360° sphere rotation at ~11.6°/step.
+// * Per-row RLE uses `(u16 leftSkip, u16 count)` headers but multiple
+//   runs per scanline — each scanline appears to be encoded as
+//   `headerA, headerB, pixels[...]` with header pairs describing both
+//   the left edge and a second interior run. We have not nailed the
+//   exact layout yet and it varies subtly between `0x0F01` and `0x0F04`
+//   flag variants.
+//
+// Until the full decoder is in place this tool:
 //   1. validates the header,
-//   2. writes `docs/set-header-dump.txt` with everything we learned,
-//   3. emits a best-effort sprite-sheet PNG per set — if the payload
-//      decoder desyncs we still produce a partial sheet for inspection.
+//   2. writes `docs/set-header-dump.txt` with everything we know,
+//   3. emits a best-effort sprite-sheet PNG per set — the game falls
+//      back to procedural sphere sprites when these PNGs are partial.
 
 import { readFileSync, writeFileSync, readdirSync, mkdirSync } from "node:fs";
 import { join, dirname, basename } from "node:path";

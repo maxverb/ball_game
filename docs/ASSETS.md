@@ -104,10 +104,30 @@ Confirmed fields:
 | `KUGEL9.SET` | `Kontrast` | 0x0F04 | 784 | |
 | `SPLITT.SET` | `Splitt` | 0x0F01 | 784 | |
 
-The per-frame payload appears to be RLE per scanline
-(`u16 x, u16 count, pixels…`). Frame separators are still being worked out —
-for now the extractor gets ~1 candidate frame per set out. Full decoding is a
-follow-up task; **the web game uses procedural sphere sprites for v1**.
+The per-frame payload is RLE per scanline but the exact run layout is
+still being worked out. What we have nailed so far:
+
+- `fileSize - dataLen = 3081` bytes for **every** .SET file — so there is
+  a fixed 3081-byte trailer after the frame payload. Its first bytes
+  include the signature `0003 0xE005 0001`, which also appears at the
+  start of `FONTS.RES`, so the trailer is probably a companion font /
+  atlas / palette helper.
+- Frame payload is approximately `93 × perFrame` bytes (where `perFrame`
+  is the header field — 812 for NORMAL, 784 for GEOMET, …). With the
+  `groupCount = 3` header field that works out to ≈ 31 frames per group,
+  consistent with a ~12° per-step sphere rotation.
+- Each scanline stores `(u16 leftSkip, u16 count)` headers, but with
+  **multiple** runs per row — a left edge run, possibly an interior
+  run, and a right edge run. Header pairs describing "before" and
+  "after" bounds (e.g. `(3, 10)(3, 8)`) appear wrapped around the pixel
+  data. The exact rule that decides how many runs live in a scanline
+  still varies between the `0x0F01` and `0x0F04` variant flags.
+- Frame width × height is always 30 × 30.
+
+Full decoding is deferred to a follow-up pass; **the web game uses
+procedural sphere sprites for v1** and the extractor still writes a
+best-effort single-frame preview PNG per set so we can spot-check the
+header parser.
 
 ## Resources (`GRF/*.RES`)
 

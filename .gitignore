@@ -5,6 +5,9 @@ web/public/assets/backgrounds/
 web/public/assets/sprites/
 web/public/assets/music/
 
+# Reverse-engineering scratch output
+docs/wippe-candidates/
+
 # Vite / node
 web/node_modules/
 web/dist/

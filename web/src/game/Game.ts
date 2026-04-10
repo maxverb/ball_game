@@ -1,8 +1,17 @@
-// The main game scene. Owns the Board, Crane, SeeSaw, Scoring and HUD
-// and implements the update loop.
+// Main game scene. Owns Board, Crane, SeeSaw, Scoring, HUD and the
+// state machine (menu / playing / paused / gameover).
 //
-// Coordinate system: the playfield is a 640×480 canvas with the board
-// occupying the centre and a 90px wide HUD strip on the right.
+// Layout on the 640×480 canvas:
+//
+//   ┌─ HUD ─┐ ┌────── PLAYFIELD ──────┐
+//   │ score │ │  crane  ============  │  y ≈ 22 (rail)
+//   │ next  │ │     see-saw beam       │  y ≈ 54
+//   │ lamps │ │  ┌──────────────────┐  │  y ≈ 80 (board top)
+//   │ lvl   │ │  │                  │  │
+//   │       │ │  │   10 × 12 grid   │  │
+//   │       │ │  │                  │  │
+//   └───────┘ │  └──────────────────┘  │  y ≈ 464 (board bottom)
+//             └────────────────────────┘
 
 import {
   Application,
@@ -13,6 +22,8 @@ import {
   Text,
   Texture,
 } from "pixi.js";
+import { AudioManager } from "../audio/AudioManager";
+import { HUD } from "../ui/HUD";
 import { BOARD_COLS, BOARD_ROWS, Board } from "./Board";
 import { Crane } from "./Crane";
 import { heartWrappedOut, rollExtra } from "./Extras";
@@ -20,17 +31,27 @@ import { stepBall } from "./Physics";
 import { Scoring } from "./Scoring";
 import { SeeSaw } from "./SeeSaw";
 import { BALL_RADIUS, createBallWeightLabel, drawBall } from "./sprites";
-import { BALL_COLOURS, type Ball, type BallKind, type BallWeight } from "./types";
-import { AudioManager } from "../audio/AudioManager";
-import { HUD } from "../ui/HUD";
+import {
+  BALL_COLOURS,
+  type Ball,
+  type BallKind,
+  type BallWeight,
+} from "./types";
 
 const CANVAS_W = 640;
 const CANVAS_H = 480;
-const BOARD_ORIGIN_X = 150;
-const BOARD_ORIGIN_Y = 56;
-const CELL = 32;
-const BOARD_W = BOARD_COLS * CELL;
-const BOARD_H = BOARD_ROWS * CELL;
+const HUD_W = 150;
+const HUD_X = 12;
+const BOARD_ORIGIN_X = HUD_X + HUD_W + 16; // 178
+const BOARD_ORIGIN_Y = 84;
+const CELL = 30;
+const BOARD_W = BOARD_COLS * CELL; // 300
+const BOARD_H = BOARD_ROWS * CELL; // 360
+const CRANE_Y = 26;
+const SEESAW_Y = 58;
+const HIGHSCORE_KEY = "swing-web-highscore";
+
+type SceneState = "menu" | "playing" | "paused" | "gameover";
 
 export class Game {
   readonly app: Application;
@@ -46,71 +67,69 @@ export class Game {
   private readonly boardLayer = new Container();
   private readonly ballsLayer = new Container();
   private readonly fxLayer = new Container();
+  private readonly menuLayer = new Container();
+  private readonly overlayLayer = new Container();
   private readonly backgroundSprite = new Sprite();
   private readonly craneGraphic = new Graphics();
   private readonly seeSawGraphic = new Graphics();
 
   /** Balls currently in flight (not held, not settled). */
   private readonly airborne: Ball[] = [];
-  /** Every ball we ever created, mapped id → visual container. */
+  /** Every ball visual container, keyed by id. */
   private readonly visuals = new Map<number, Container>();
   private nextBallId = 1;
+  private nextKind: BallKind | null = null;
 
+  private state: SceneState = "menu";
+  private level = 1;
+  private linesCleared = 0;
+  private highscore = 0;
   private readonly keys = new Set<string>();
   private moveCooldown = 0;
-  private paused = false;
-  private gameOver = false;
   private rng = Math.random;
 
   constructor(app: Application) {
     this.app = app;
     this.crane = new Crane(
       BOARD_ORIGIN_X + BOARD_W / 2,
-      BOARD_ORIGIN_Y - 18,
+      CRANE_Y,
       BOARD_ORIGIN_X + CELL / 2,
       BOARD_ORIGIN_X + BOARD_W - CELL / 2,
     );
     this.seeSaw = new SeeSaw(
       BOARD_ORIGIN_X + BOARD_W / 2,
-      BOARD_ORIGIN_Y + BOARD_H + 22,
-      BOARD_W / 2 - 24,
+      SEESAW_Y,
+      BOARD_W / 2 - 14,
     );
   }
 
   async init(): Promise<void> {
-    // Background — first extracted SWG that looks game-y. Falls back to a
-    // solid colour if loading fails (e.g. when assets were not extracted).
-    try {
-      const tex = await Assets.load<Texture>("assets/backgrounds/grf_hinterh.png");
-      this.backgroundSprite.texture = tex;
-      this.backgroundSprite.width = CANVAS_W;
-      this.backgroundSprite.height = CANVAS_H;
-    } catch {
-      const g = new Graphics().rect(0, 0, CANVAS_W, CANVAS_H).fill({ color: 0x0c0e1a });
-      this.worldLayer.addChild(g);
-    }
-    this.worldLayer.addChild(this.backgroundSprite);
+    await this.loadBackground();
 
-    // Board frame
     const frame = new Graphics()
-      .roundRect(BOARD_ORIGIN_X - 6, BOARD_ORIGIN_Y - 6, BOARD_W + 12, BOARD_H + 12, 8)
-      .fill({ color: 0x000014, alpha: 0.6 })
-      .stroke({ color: 0x3a4aa0, width: 3 });
+      .roundRect(
+        BOARD_ORIGIN_X - 6,
+        BOARD_ORIGIN_Y - 6,
+        BOARD_W + 12,
+        BOARD_H + 12,
+        6,
+      )
+      .fill({ color: 0x000018, alpha: 0.62 })
+      .stroke({ color: 0x3a4aa0, width: 2 });
     this.worldLayer.addChild(frame);
 
-    // grid guides
     const grid = new Graphics();
     for (let c = 0; c <= BOARD_COLS; c++) {
       grid
         .moveTo(BOARD_ORIGIN_X + c * CELL, BOARD_ORIGIN_Y)
         .lineTo(BOARD_ORIGIN_X + c * CELL, BOARD_ORIGIN_Y + BOARD_H)
-        .stroke({ color: 0x25305a, width: 1, alpha: 0.4 });
+        .stroke({ color: 0x26305c, width: 1, alpha: 0.35 });
     }
     for (let r = 0; r <= BOARD_ROWS; r++) {
       grid
         .moveTo(BOARD_ORIGIN_X, BOARD_ORIGIN_Y + r * CELL)
         .lineTo(BOARD_ORIGIN_X + BOARD_W, BOARD_ORIGIN_Y + r * CELL)
-        .stroke({ color: 0x25305a, width: 1, alpha: 0.4 });
+        .stroke({ color: 0x26305c, width: 1, alpha: 0.35 });
     }
     this.worldLayer.addChild(grid);
     this.worldLayer.addChild(this.boardLayer);
@@ -118,23 +137,20 @@ export class Game {
     this.worldLayer.addChild(this.craneGraphic);
     this.worldLayer.addChild(this.ballsLayer);
     this.worldLayer.addChild(this.fxLayer);
-
     this.app.stage.addChild(this.worldLayer);
 
-    // HUD panel to the left of the board
-    this.hud.root.position.set(16, BOARD_ORIGIN_Y);
+    this.hud.root.position.set(HUD_X, BOARD_ORIGIN_Y - 2);
     this.app.stage.addChild(this.hud.root);
+    this.app.stage.addChild(this.overlayLayer);
+    this.app.stage.addChild(this.menuLayer);
 
     await this.audio.init();
-    this.audio.play("start");
+    this.highscore = Number(localStorage.getItem(HIGHSCORE_KEY) ?? "0") || 0;
 
-    // Spawn first ball
-    this.spawnNextBall();
+    this.showMenu();
 
-    // Key handlers
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
-
     this.app.ticker.add((ticker) => this.tick(ticker.deltaMS / 1000));
   }
 
@@ -143,127 +159,221 @@ export class Game {
     window.removeEventListener("keyup", this.onKeyUp);
   }
 
-  // --------------------------------------------------------------------- tick
+  // ---------------------------------------------------------------- scenes
+  private showMenu(): void {
+    this.state = "menu";
+    this.menuLayer.removeChildren();
+    const bg = new Graphics()
+      .rect(0, 0, CANVAS_W, CANVAS_H)
+      .fill({ color: 0x000018, alpha: 0.72 });
+    this.menuLayer.addChild(bg);
+
+    const title = new Text({
+      text: "SWING",
+      style: {
+        fontFamily: "monospace",
+        fontSize: 80,
+        fill: 0xe8edff,
+        stroke: { color: 0x223080, width: 6 },
+        fontWeight: "bold",
+      },
+    });
+    title.anchor.set(0.5);
+    title.position.set(CANVAS_W / 2, 140);
+    this.menuLayer.addChild(title);
+
+    const subtitle = new Text({
+      text: "web remake · after Software 2000, 1997",
+      style: { fontFamily: "monospace", fontSize: 14, fill: 0x9aa0c8 },
+    });
+    subtitle.anchor.set(0.5);
+    subtitle.position.set(CANVAS_W / 2, 190);
+    this.menuLayer.addChild(subtitle);
+
+    const help = new Text({
+      text:
+        "← → move crane     ↓ / Enter drop     P pause     M mute\n\n" +
+        "Match three spheres of the same colour to clear them.\n" +
+        "Heavier spheres tilt the see-saw and launch the next ball\n" +
+        "sideways on its way down.",
+      style: {
+        fontFamily: "monospace",
+        fontSize: 14,
+        fill: 0xc8d0ee,
+        align: "center",
+        lineHeight: 20,
+      },
+    });
+    help.anchor.set(0.5);
+    help.position.set(CANVAS_W / 2, 270);
+    this.menuLayer.addChild(help);
+
+    const hs = new Text({
+      text: `high score: ${this.highscore.toLocaleString()}`,
+      style: { fontFamily: "monospace", fontSize: 14, fill: 0xf2c848 },
+    });
+    hs.anchor.set(0.5);
+    hs.position.set(CANVAS_W / 2, 360);
+    this.menuLayer.addChild(hs);
+
+    const prompt = new Text({
+      text: "press SPACE or ENTER to play",
+      style: {
+        fontFamily: "monospace",
+        fontSize: 18,
+        fill: 0xffffff,
+        fontWeight: "bold",
+      },
+    });
+    prompt.anchor.set(0.5);
+    prompt.position.set(CANVAS_W / 2, 410);
+    this.menuLayer.addChild(prompt);
+    this.menuBlink = prompt;
+  }
+  private menuBlink: Text | null = null;
+
+  private startGame(): void {
+    this.menuLayer.removeChildren();
+    this.menuBlink = null;
+    this.overlayLayer.removeChildren();
+
+    // Wipe game state
+    for (const [id, cont] of this.visuals) {
+      cont.destroy({ children: true });
+      this.visuals.delete(id);
+    }
+    this.airborne.length = 0;
+    for (let r = 0; r < this.board.rows; r++) {
+      for (let c = 0; c < this.board.cols; c++) this.board.clearCell(c, r);
+    }
+    this.seeSaw.reset();
+    this.scoring.score = 0;
+    this.scoring.lamps = { 2: 0, 3: 0, 4: 0 };
+    this.level = 1;
+    this.linesCleared = 0;
+    this.state = "playing";
+
+    // Seed the queue: next then held
+    this.nextKind = this.randomBallKind();
+    this.spawnNextBall();
+    this.audio.play("start");
+  }
+
+  private async loadBackground(): Promise<void> {
+    try {
+      const tex = await Assets.load<Texture>("assets/backgrounds/grf_hinterh.png");
+      this.backgroundSprite.texture = tex;
+      this.backgroundSprite.width = CANVAS_W;
+      this.backgroundSprite.height = CANVAS_H;
+      this.worldLayer.addChild(this.backgroundSprite);
+    } catch {
+      const g = new Graphics().rect(0, 0, CANVAS_W, CANVAS_H).fill({ color: 0x0a0c1a });
+      this.worldLayer.addChild(g);
+    }
+  }
+
+  // ------------------------------------------------------------------ tick
   private tick(dt: number): void {
-    if (this.paused || this.gameOver) return;
+    if (this.menuBlink) {
+      this.menuBlink.alpha = 0.5 + Math.sin(performance.now() / 250) * 0.5;
+    }
+    if (this.state !== "playing") return;
+
     this.scoring.tick(dt);
 
-    // crane input
+    // Crane input with auto-repeat
     this.moveCooldown -= dt;
     if (this.moveCooldown <= 0) {
       if (this.keys.has("ArrowLeft")) {
-        this.crane.moveBy(-CELL / 2);
+        this.crane.moveBy(-CELL);
         this.moveCooldown = 0.09;
       } else if (this.keys.has("ArrowRight")) {
-        this.crane.moveBy(CELL / 2);
+        this.crane.moveBy(CELL);
         this.moveCooldown = 0.09;
       }
     }
+    // Keep held ball glued to the crane
+    if (this.crane.held) {
+      this.crane.held.x = this.crane.x;
+      this.crane.held.y = this.crane.y;
+    }
 
-    // airborne balls
+    // Airborne physics
     const leftWall = BOARD_ORIGIN_X + BALL_RADIUS;
     const rightWall = BOARD_ORIGIN_X + BOARD_W - BALL_RADIUS;
     for (let i = this.airborne.length - 1; i >= 0; i--) {
       const ball = this.airborne[i];
       stepBall(ball, dt, leftWall, rightWall);
 
-      // Heart wrap-around → bomb
+      // Heart → bomb wrap-around
       if (
         ball.kind.kind === "extra" &&
         ball.kind.extra === "heart" &&
-        heartWrappedOut(ball.x, leftWall - 20, rightWall + 20)
+        heartWrappedOut(ball.x, leftWall - 24, rightWall + 24)
       ) {
-        ball.kind = { kind: "extra", extra: "bomb" } as BallKind;
+        ball.kind = { kind: "extra", extra: "bomb" };
         ball.x = ball.x < leftWall ? rightWall : leftWall;
         ball.vx = -ball.vx * 0.3;
         this.refreshVisual(ball);
       }
 
-      // Reached see-saw height?
-      const seeSawY = this.seeSaw.state.pivotY - 8;
-      if (ball.vy > 0 && ball.y >= seeSawY) {
-        this.handleSeeSawLanding(ball);
-        this.airborne.splice(i, 1);
-        continue;
+      // See-saw launch (once per ball, while it's travelling down)
+      if (!ball.passedSeeSaw && ball.vy > 0 && ball.y >= SEESAW_Y) {
+        const side = ball.x < this.seeSaw.state.pivotX ? "left" : "right";
+        const vec = this.seeSaw.launch(ball, side);
+        ball.vx = vec.vx;
+        ball.vy = Math.max(vec.vy, 40);
+        ball.passedSeeSaw = true;
+        if (vec.vx !== 0) this.audio.play("wupp");
       }
     }
 
-    // Settle / match detection (all cleared in discrete ticks so physics
-    // and logic don't fight each other)
+    // Settle into the board
     let dirty = false;
-    // anything that was launched *back onto* the grid is handled by
-    // handleSeeSawLaunch; here we also catch balls that should settle when
-    // they enter an empty column.
     for (let i = this.airborne.length - 1; i >= 0; i--) {
       const ball = this.airborne[i];
+      if (!ball.passedSeeSaw || ball.vy <= 0) continue;
       const col = this.colAt(ball.x);
       if (col < 0 || col >= BOARD_COLS) continue;
-      // If below the board top and there's a cell under it, stop.
-      const cellTop = BOARD_ORIGIN_Y + this.board.dropRowFor(col) * CELL + BALL_RADIUS;
-      if (ball.vy > 0 && ball.y >= cellTop && this.board.dropRowFor(col) >= 0) {
-        const row = this.board.dropRowFor(col);
-        if (row >= 0) {
-          ball.x = BOARD_ORIGIN_X + col * CELL + CELL / 2;
-          ball.y = BOARD_ORIGIN_Y + row * CELL + CELL / 2;
-          ball.vx = 0;
-          ball.vy = 0;
-          this.board.set(col, row, ball);
-          this.airborne.splice(i, 1);
-          this.audio.play("klack");
-          dirty = true;
-        }
+      const dropRow = this.board.dropRowFor(col);
+      if (dropRow < 0) continue;
+      const targetY = BOARD_ORIGIN_Y + dropRow * CELL + CELL / 2;
+      if (ball.y >= targetY) {
+        ball.x = BOARD_ORIGIN_X + col * CELL + CELL / 2;
+        ball.y = targetY;
+        ball.vx = 0;
+        ball.vy = 0;
+        this.board.set(col, dropRow, ball);
+        this.airborne.splice(i, 1);
+        this.audio.play("klack");
+        dirty = true;
       }
     }
 
-    if (dirty) {
-      this.resolveMatches();
-    }
+    if (dirty) this.resolveMatches();
 
     if (this.board.isGameOver()) {
       this.onGameOver();
+      return;
     }
 
-    // redraw dynamic visuals
     this.drawCrane();
     this.drawSeeSaw();
     this.syncVisuals();
-    this.hud.update(this.scoring);
+    this.hud.update(this.scoring, {
+      level: this.level,
+      nextKind: this.nextKind,
+      highscore: this.highscore,
+    });
   }
 
-  // ----------------------------------------------------------------- helpers
+  // ---------------------------------------------------------------- helpers
   private colAt(x: number): number {
     return Math.floor((x - BOARD_ORIGIN_X) / CELL);
   }
 
-  private handleSeeSawLanding(ball: Ball): void {
-    const side = ball.x < this.seeSaw.state.pivotX ? "left" : "right";
-    const { launched, vector } = this.seeSaw.place(ball, side);
-    // The ball that *arrived* sits on the pan; the previously-resting
-    // opposite ball gets launched back into the air.
-    ball.vx = 0;
-    ball.vy = 0;
-    const pan = side === "left" ? this.seeSaw.leftPan() : this.seeSaw.rightPan();
-    ball.x = pan.x;
-    ball.y = pan.y - BALL_RADIUS;
-
-    if (launched) {
-      launched.vx = vector.vx;
-      launched.vy = vector.vy;
-      this.airborne.push(launched);
-      this.audio.play("wupp");
-    }
-    // After a brief settle, drop the newly-placed ball back into the
-    // nearest column so the player sees gravity work. We achieve that by
-    // giving it a small downward velocity next frame; the settle handler
-    // then takes over.
-    setTimeout(() => {
-      ball.vy = 10;
-      this.airborne.push(ball);
-    }, 120);
-  }
-
   private spawnNextBall(): void {
-    const kind = this.randomBallKind();
+    const kind = this.nextKind ?? this.randomBallKind();
     const ball: Ball = {
       id: this.nextBallId++,
       kind,
@@ -272,6 +382,7 @@ export class Game {
       vx: 0,
       vy: 0,
       cell: null,
+      passedSeeSaw: false,
     };
     const container = new Container();
     const gfx = new Graphics();
@@ -282,6 +393,7 @@ export class Game {
     this.ballsLayer.addChild(container);
     this.visuals.set(ball.id, container);
     this.crane.hold(ball);
+    this.nextKind = this.randomBallKind();
   }
 
   private refreshVisual(ball: Ball): void {
@@ -296,7 +408,7 @@ export class Game {
   }
 
   private randomBallKind(): BallKind {
-    const extra = rollExtra(this.rng);
+    const extra = rollExtra(this.rng, 0.06 + this.level * 0.005);
     if (extra) return { kind: "extra", extra };
     const colour = BALL_COLOURS[Math.floor(this.rng() * BALL_COLOURS.length)];
     const weight = (1 + Math.floor(this.rng() * 9)) as BallWeight;
@@ -306,30 +418,34 @@ export class Game {
   private drawCrane(): void {
     const g = this.craneGraphic;
     g.clear();
-    // rail
-    g.moveTo(BOARD_ORIGIN_X, this.crane.y - 18)
-      .lineTo(BOARD_ORIGIN_X + BOARD_W, this.crane.y - 18)
+    g.moveTo(BOARD_ORIGIN_X, this.crane.y - 14)
+      .lineTo(BOARD_ORIGIN_X + BOARD_W, this.crane.y - 14)
       .stroke({ color: 0x6080c0, width: 3 });
-    // carriage
-    g.rect(this.crane.x - 18, this.crane.y - 24, 36, 10).fill({ color: 0x8a9ad8 });
-    g.rect(this.crane.x - 2, this.crane.y - 14, 4, 16).fill({ color: 0x6080c0 });
+    g.rect(this.crane.x - 18, this.crane.y - 22, 36, 9).fill({ color: 0x8a9ad8 });
+    g.rect(this.crane.x - 14, this.crane.y - 13, 28, 3).fill({ color: 0x6080c0 });
+    g.rect(this.crane.x - 2, this.crane.y - 10, 4, 14).fill({ color: 0x6080c0 });
   }
 
   private drawSeeSaw(): void {
     const g = this.seeSawGraphic;
     g.clear();
     const { pivotX, pivotY, halfLen, angle } = this.seeSaw.state;
-    // pivot post
-    g.rect(pivotX - 4, pivotY, 8, 40).fill({ color: 0x3a4466 });
-    g.circle(pivotX, pivotY, 5).fill({ color: 0x7a88aa });
-    // beam
+    g.rect(pivotX - 3, pivotY, 6, 18).fill({ color: 0x3a4466 });
+    g.circle(pivotX, pivotY, 4).fill({ color: 0x7a88aa });
     const lx = pivotX - Math.cos(angle) * halfLen;
     const ly = pivotY + Math.sin(angle) * halfLen;
     const rx = pivotX + Math.cos(angle) * halfLen;
     const ry = pivotY - Math.sin(angle) * halfLen;
     g.moveTo(lx, ly)
       .lineTo(rx, ry)
-      .stroke({ color: 0xc0c8e0, width: 6, cap: "round" });
+      .stroke({ color: 0xc0c8e0, width: 5, cap: "round" });
+    // Weight bubbles at the ends
+    const labelAt = (x: number, y: number, w: number, dimmed: boolean): void => {
+      if (w === 0) return;
+      g.circle(x, y, 6).fill({ color: dimmed ? 0x303860 : 0xffd060 });
+    };
+    labelAt(lx, ly - 3, this.seeSaw.state.leftWeight, false);
+    labelAt(rx, ry - 3, this.seeSaw.state.rightWeight, false);
   }
 
   private syncVisuals(): void {
@@ -338,12 +454,10 @@ export class Game {
       const cont = this.visuals.get(held.id);
       if (cont) cont.position.set(held.x, held.y);
     }
-    // airborne
     for (const b of this.airborne) {
       const cont = this.visuals.get(b.id);
       if (cont) cont.position.set(b.x, b.y);
     }
-    // settled balls
     for (let r = 0; r < this.board.rows; r++) {
       for (let c = 0; c < this.board.cols; c++) {
         const b = this.board.get(c, r);
@@ -352,36 +466,15 @@ export class Game {
         if (cont) cont.position.set(b.x, b.y);
       }
     }
-    // see-saw pan balls
-    const pans: ("left" | "right")[] = ["left", "right"];
-    for (const side of pans) {
-      const ball = side === "left" ? this.seeSaw.left : this.seeSaw.right;
-      if (!ball) continue;
-      const pos = side === "left" ? this.seeSaw.leftPan() : this.seeSaw.rightPan();
-      ball.x = pos.x;
-      ball.y = pos.y - BALL_RADIUS;
-      const cont = this.visuals.get(ball.id);
-      if (cont) cont.position.set(ball.x, ball.y);
-    }
   }
 
   private resolveMatches(): void {
-    // Star extras: three in a row clears the board
     if (this.board.hasStarTriple()) {
       this.audio.play("star");
       const remaining = this.board.countWhere(() => true);
       this.scoring.registerStarClear(remaining);
-      for (let r = 0; r < this.board.rows; r++) {
-        for (let c = 0; c < this.board.cols; c++) {
-          const b = this.board.get(c, r);
-          if (!b) continue;
-          this.board.clearCell(c, r);
-          const cont = this.visuals.get(b.id);
-          if (cont) cont.destroy({ children: true });
-          this.visuals.delete(b.id);
-        }
-      }
-      return;
+      this.linesCleared += remaining;
+      this.clearEntireBoard();
     }
 
     let safety = 0;
@@ -404,16 +497,40 @@ export class Game {
         this.board.clearCell(c, r);
       }
       this.scoring.registerDreier(matched.size, weightSum);
+      this.linesCleared++;
       this.applyGravity();
     }
 
-    // after clearing, spawn a new ball if the crane is empty
-    if (!this.crane.held && !this.gameOver) {
+    // Level up every 8 matches cleared
+    const targetLevel = 1 + Math.floor(this.linesCleared / 8);
+    if (targetLevel > this.level) {
+      this.level = targetLevel;
+      this.audio.play("huhu");
+    }
+
+    if (this.scoring.score > this.highscore) {
+      this.highscore = this.scoring.score;
+      localStorage.setItem(HIGHSCORE_KEY, String(this.highscore));
+    }
+
+    if (!this.crane.held && this.state === "playing") {
       this.spawnNextBall();
     }
   }
 
-  /** After a match, remaining balls above empty spots fall down. */
+  private clearEntireBoard(): void {
+    for (let r = 0; r < this.board.rows; r++) {
+      for (let c = 0; c < this.board.cols; c++) {
+        const b = this.board.get(c, r);
+        if (!b) continue;
+        const cont = this.visuals.get(b.id);
+        if (cont) cont.destroy({ children: true });
+        this.visuals.delete(b.id);
+        this.board.clearCell(c, r);
+      }
+    }
+  }
+
   private applyGravity(): void {
     for (let c = 0; c < this.board.cols; c++) {
       const stack: Ball[] = [];
@@ -433,35 +550,100 @@ export class Game {
   }
 
   private onGameOver(): void {
-    if (this.gameOver) return;
-    this.gameOver = true;
+    if (this.state === "gameover") return;
+    this.state = "gameover";
     this.audio.play("grExplo");
-    const overlay = new Graphics()
+    if (this.scoring.score > this.highscore) {
+      this.highscore = this.scoring.score;
+      localStorage.setItem(HIGHSCORE_KEY, String(this.highscore));
+    }
+    this.overlayLayer.removeChildren();
+    const bg = new Graphics()
       .rect(0, 0, CANVAS_W, CANVAS_H)
-      .fill({ color: 0x000014, alpha: 0.75 });
-    const label = new Text({
-      text: `GAME OVER\n\nScore: ${this.scoring.score.toLocaleString()}\n\nreload to play again`,
+      .fill({ color: 0x000018, alpha: 0.78 });
+    this.overlayLayer.addChild(bg);
+    const title = new Text({
+      text: "GAME OVER",
       style: {
         fontFamily: "monospace",
-        fontSize: 28,
-        fill: 0xffffff,
-        align: "center",
+        fontSize: 54,
+        fill: 0xff8090,
+        fontWeight: "bold",
+        stroke: { color: 0x400810, width: 4 },
       },
     });
-    label.anchor.set(0.5);
-    label.position.set(CANVAS_W / 2, CANVAS_H / 2);
-    this.app.stage.addChild(overlay);
-    this.app.stage.addChild(label);
+    title.anchor.set(0.5);
+    title.position.set(CANVAS_W / 2, 170);
+    this.overlayLayer.addChild(title);
+
+    const info = new Text({
+      text:
+        `Score: ${this.scoring.score.toLocaleString()}\n` +
+        `High score: ${this.highscore.toLocaleString()}\n` +
+        `Level reached: ${this.level}\n\n` +
+        `press SPACE to play again`,
+      style: {
+        fontFamily: "monospace",
+        fontSize: 18,
+        fill: 0xf0f2ff,
+        align: "center",
+        lineHeight: 26,
+      },
+    });
+    info.anchor.set(0.5);
+    info.position.set(CANVAS_W / 2, 280);
+    this.overlayLayer.addChild(info);
   }
 
-  // ------------------------------------------------------------ input
+  private showPause(): void {
+    this.overlayLayer.removeChildren();
+    const bg = new Graphics()
+      .rect(0, 0, CANVAS_W, CANVAS_H)
+      .fill({ color: 0x000018, alpha: 0.68 });
+    const t = new Text({
+      text: "PAUSED\n\npress P to resume",
+      style: {
+        fontFamily: "monospace",
+        fontSize: 32,
+        fill: 0xffffff,
+        align: "center",
+        fontWeight: "bold",
+      },
+    });
+    t.anchor.set(0.5);
+    t.position.set(CANVAS_W / 2, CANVAS_H / 2);
+    this.overlayLayer.addChild(bg);
+    this.overlayLayer.addChild(t);
+  }
+
+  // ------------------------------------------------------------------ input
   private onKeyDown = (e: KeyboardEvent): void => {
     this.keys.add(e.key);
-    if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+    const k = e.key;
+    if (this.state === "menu") {
+      if (k === " " || k === "Enter") this.startGame();
+      return;
+    }
+    if (this.state === "gameover") {
+      if (k === " " || k === "Enter") {
+        this.startGame();
+      }
+      return;
+    }
+    if (this.state === "paused") {
+      if (k === "p" || k === "P") {
+        this.state = "playing";
+        this.overlayLayer.removeChildren();
+      }
+      return;
+    }
+    // playing
+    if (k === "ArrowDown" || k === "Enter" || k === " ") {
       this.dropHeldBall();
-    } else if (e.key === "p" || e.key === "P") {
-      this.paused = !this.paused;
-    } else if (e.key === "m" || e.key === "M") {
+    } else if (k === "p" || k === "P") {
+      this.state = "paused";
+      this.showPause();
+    } else if (k === "m" || k === "M") {
       this.audio.toggleMute();
     }
   };
@@ -474,7 +656,8 @@ export class Game {
     const ball = this.crane.drop();
     if (!ball) return;
     this.audio.play("kran");
-    ball.vy = 30;
+    ball.vy = 60 + this.level * 8; // initial nudge scales with level
+    ball.passedSeeSaw = false;
     this.airborne.push(ball);
     this.spawnNextBall();
   }

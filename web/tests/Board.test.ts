@@ -13,6 +13,7 @@ function makeBall(kind: BallKind): Ball {
     vx: 0,
     vy: 0,
     cell: null,
+    passedSeeSaw: false,
   };
 }
 

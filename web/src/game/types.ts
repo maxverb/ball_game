@@ -33,21 +33,22 @@ export type BallKind =
 export interface Ball {
   id: number;
   kind: BallKind;
-  /** World position in pixels (top-left of the 32×32 sprite box). */
+  /** World position in pixels (centre of the sprite). */
   x: number;
   y: number;
   vx: number;
   vy: number;
   /** Grid cell once settled, or null while airborne. */
   cell: { col: number; row: number } | null;
+  /** Flip-once flag: set when the ball has already traversed the see-saw. */
+  passedSeeSaw: boolean;
 }
 
 /**
- * A see-saw sits between two board columns and tilts based on the
- * weight difference of its left vs right ball. The tilt decides how far
- * sideways the next incoming ball is kicked before it falls into the
- * grid. Classic SWING has multiple see-saws at different heights — v1
- * models a single one to keep the launch logic tractable.
+ * A see-saw sits between the crane (top) and the board. It tilts based
+ * on the weight memory of its two pans. README quote:
+ *   "When a sphere is thrown, the distance it travels will depend on the
+ *    difference in the weights on the see-saw."
  */
 export interface SeeSawState {
   /** World x of the pivot (centre of the see-saw). */
@@ -56,7 +57,7 @@ export interface SeeSawState {
   pivotY: number;
   /** Half-length in pixels, i.e. distance from pivot to each end. */
   halfLen: number;
-  /** Current left/right weights resting on the see-saw. */
+  /** Current left/right weights remembered from previous drops. */
   leftWeight: number;
   rightWeight: number;
   /** Tilt angle in radians, positive = right side up. */
