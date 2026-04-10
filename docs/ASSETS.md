@@ -218,6 +218,28 @@ Key resources for the web game:
 Per-subtype RLE decoders are still pending; the web game falls back to
 procedural art until they are finished.
 
+### `WIPPE.RES` (see-saw beam) investigation
+
+We spent time on `WIPPE.RES` specifically — it's the smallest subtype-2
+resource (17 276 bytes, declared 56×6 × 3 frames = ~2 KB of pixel data).
+Findings so far (see `tools/try-wippe.mjs`):
+
+- Pixel data starts at 0x14 with an 8-byte marker of four `0x0003`
+  u16s, followed by 96 bytes (48 pixels) of RGB565 LE pixel data.
+- Subsequent rows are preceded by 16-byte markers (eight `0x0003`s)
+  and also carry 96 bytes of pixel data. That means the drawn beam is
+  48 pixels wide — 4 px of implicit margin per side vs. the declared
+  56 px width.
+- We have **not** worked out how the 16-byte markers encode the frame
+  breaks or why the file is ~17 KB when three 48×6 frames would only
+  need ~1.7 KB. Almost certainly WIPPE.RES stores many sub-frames for
+  a smooth tilt animation beyond the 3 "main" frames exposed in the
+  header.
+
+The web game continues to draw the see-saw procedurally
+(`game/Game.ts → drawSeeSaw`). Cracking the full WIPPE format is left
+as a follow-up.
+
 ## Music (`DMTS/NEU*.DMT`)
 
 28 tracks in a custom tracker format (probably related to "DigiMusic
