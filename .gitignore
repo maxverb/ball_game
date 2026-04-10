@@ -13,3 +13,11 @@ web/node_modules/
 web/dist/
 web/.vite/
 *.log
+
+# Dashboard (local Piano Analytics + Google Sheets dashboard)
+dashboard/node_modules/
+dashboard/dist/
+dashboard/dist-server/
+dashboard/data/
+dashboard/.env
+dashboard/.vite/
