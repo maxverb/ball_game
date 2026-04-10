@@ -7,18 +7,20 @@ reverse-engineering notes.
 ## Getting started
 
 ```bash
-# 1. extract the original assets (one-time, safe to re-run)
-cd ..
-node tools/extract-wav.mjs
-node tools/extract-swg.mjs
-node tools/extract-set.mjs
-node tools/extract-res.mjs
+# 1. extract the original assets in one go (safe to re-run)
+cd .. && node tools/extract-all.mjs
 
 # 2. install & run the web game
 cd web
 npm install
-npm run dev     # http://localhost:5173
+npm run dev       # http://localhost:5173 — hot reload
+npm test          # 17 unit tests for Board, Scoring, SeeSaw
+npm run build     # production bundle under ./dist/
 ```
+
+The production build also ships automatically to
+`https://maxverb.github.io/ball_game/` via the
+[`Deploy SWING web`](../.github/workflows/deploy.yml) workflow.
 
 ## Controls
 

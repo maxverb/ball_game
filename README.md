@@ -11,21 +11,47 @@ ball_game/
 └── web/            ← the Vite + TypeScript + PixiJS web remake
 ```
 
-## Quick start
+## Play it in the browser
+
+Every push to `main` (or to a `claude/*` branch) triggers the
+[`Deploy SWING web`](./.github/workflows/deploy.yml) workflow which
+extracts the original `SWING/` assets, type-checks, runs the unit
+tests, builds the web app with Vite, and publishes it to **GitHub
+Pages**.
+
+Once the workflow has run at least once and Pages has been enabled for
+the repo (Settings → Pages → Source = **GitHub Actions**), the remake
+is playable at:
+
+**`https://maxverb.github.io/ball_game/`**
+
+The workflow is a no-op until Pages is enabled for the repo — the
+first run may need to be re-queued from the Actions tab after enabling
+Pages.
+
+## Local development
 
 ```bash
-# 1. extract the original assets into web/public/assets/
-node tools/extract-wav.mjs
-node tools/extract-swg.mjs
-node tools/extract-set.mjs
-node tools/extract-res.mjs
+# 1. extract the original assets into web/public/assets/ (~7 MB total)
+node tools/extract-all.mjs
 
 # 2. install and run the web game
 cd web
 npm install
-npm run dev      # http://localhost:5173
-npm test         # run the unit tests
+npm run dev       # http://localhost:5173 — hot reload
+npm test          # run the unit tests (17/17 green)
+npm run build     # production bundle under web/dist/
 ```
+
+Controls:
+
+| Key | Action |
+|---|---|
+| ← → | move crane |
+| ↓ / Enter / Space | drop ball |
+| S | cycle sphere set (6 real SWING skins) |
+| P | pause |
+| M | mute |
 
 ## What's been figured out
 

@@ -5,20 +5,23 @@ assets into open formats the web game can consume.
 
 All scripts read from `../SWING/` and write to `../web/public/assets/`.
 
-Run individually:
-
-```bash
-node tools/extract-wav.mjs
-node tools/extract-swg.mjs
-node tools/extract-set.mjs
-node tools/extract-res.mjs
-```
-
-Or run everything:
+Run everything:
 
 ```bash
 node tools/extract-all.mjs
 ```
+
+Or run them individually:
+
+```bash
+node tools/extract-wav.mjs     # copies SND/*.WAV
+node tools/extract-swg.mjs     # decodes .SWG backgrounds
+node tools/extract-set.mjs     # decodes KUGELN/*.SET sphere sets
+node tools/extract-res.mjs     # documents GRF/*.RES headers
+```
+
+The `extract-all` runner is also what the GitHub Actions deploy
+workflow calls before building the web app.
 
 ## File formats (what we've figured out so far)
 
