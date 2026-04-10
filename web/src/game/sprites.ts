@@ -1,10 +1,10 @@
-// Procedural sprite factory. Since the original `.SET`/`.RES` decoders
-// are still WIP (see docs/ASSETS.md), the initial playable build draws
-// the balls, crane and see-saw from code. Once the decoders are done
-// these functions get replaced with real PixiJS textures loaded from
-// `/assets/sprites/`.
+// Procedural sprite factory (plus a hook for real extracted sphere
+// textures). Each ball is drawn as either a PixiJS Sprite backed by an
+// original SWING sphere-set frame (`createBallVisual` with an injected
+// texture) or falls back to a Graphics drawing when no real art is
+// available — see docs/ASSETS.md for the `.SET` decoder state.
 
-import { Graphics, Text } from "pixi.js";
+import { Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import type { BallColour, BallKind, BallWeight, ExtraKind } from "./types";
 
 export const BALL_RADIUS = 16;
@@ -95,6 +95,32 @@ function drawStar(g: Graphics, color: number): void {
     points.push(Math.cos(a) * r, Math.sin(a) * r);
   }
   g.poly(points).fill({ color });
+}
+
+/**
+ * Build a ball visual container using, when possible, an extracted
+ * sphere-set texture for the given colour. Falls back to the procedural
+ * `drawBall` Graphics if no texture is available.
+ */
+export function createBallVisual(
+  kind: BallKind,
+  textures?: Partial<Record<BallColour, Texture | null>>,
+): Container {
+  const container = new Container();
+  const realTex =
+    kind.kind === "regular" ? textures?.[kind.colour] ?? null : null;
+  if (realTex) {
+    const sprite = new Sprite(realTex);
+    sprite.anchor.set(0.5);
+    container.addChild(sprite);
+  } else {
+    const gfx = new Graphics();
+    drawBall(gfx, kind);
+    container.addChild(gfx);
+  }
+  const label = createBallWeightLabel(kind);
+  if (label) container.addChild(label);
+  return container;
 }
 
 export function createBallWeightLabel(kind: BallKind): Text | null {

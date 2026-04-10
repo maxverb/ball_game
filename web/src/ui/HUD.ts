@@ -3,13 +3,15 @@
 
 import { Container, Graphics, Text } from "pixi.js";
 import type { Scoring } from "../game/Scoring";
+import { createBallVisual } from "../game/sprites";
+import type { LoadedSet } from "../game/SphereSet";
 import type { BallKind } from "../game/types";
-import { drawBall } from "../game/sprites";
 
 export interface HudUpdate {
   level: number;
   nextKind: BallKind | null;
   highscore: number;
+  sphereSet: LoadedSet | null;
 }
 
 export class HUD {
@@ -19,9 +21,10 @@ export class HUD {
   private readonly highText: Text;
   private readonly lamps: Graphics;
   private readonly lampLabels: Text[] = [];
-  private readonly nextBallGfx = new Graphics();
-  private readonly nextLabel: Text;
+  private readonly nextHolder = new Container();
+  private readonly setNameText: Text;
   private lastNextKey = "";
+  private lastSetId = "";
 
   constructor() {
     const panel = new Graphics()
@@ -100,12 +103,12 @@ export class HUD {
     this.root.addChild(this.highText);
 
     // Next ball preview
-    this.nextLabel = new Text({
+    const nextLabel = new Text({
       text: "NEXT",
       style: { fontFamily: "monospace", fontSize: 11, fill: 0x9aa0c8 },
     });
-    this.nextLabel.position.set(12, 218);
-    this.root.addChild(this.nextLabel);
+    nextLabel.position.set(12, 218);
+    this.root.addChild(nextLabel);
 
     const nextBox = new Graphics()
       .roundRect(12, 232, 54, 54, 4)
@@ -113,13 +116,18 @@ export class HUD {
       .stroke({ color: 0x3a4aa0, width: 1 });
     this.root.addChild(nextBox);
 
-    const nextHolder = new Container();
-    nextHolder.position.set(12 + 27, 232 + 27);
-    nextHolder.addChild(this.nextBallGfx);
-    this.root.addChild(nextHolder);
+    this.nextHolder.position.set(12 + 27, 232 + 27);
+    this.root.addChild(this.nextHolder);
+
+    this.setNameText = new Text({
+      text: "",
+      style: { fontFamily: "monospace", fontSize: 10, fill: 0x8fa0d0 },
+    });
+    this.setNameText.position.set(12, 292);
+    this.root.addChild(this.setNameText);
 
     const hint = new Text({
-      text: "P pause\nM mute",
+      text: "P pause\nM mute\nS skin",
       style: { fontFamily: "monospace", fontSize: 11, fill: 0x8088b0 },
     });
     hint.position.set(12, 320);
@@ -166,11 +174,22 @@ export class HUD {
     if (extra) {
       this.levelText.text = String(extra.level);
       this.highText.text = extra.highscore.toLocaleString();
-      const key = JSON.stringify(extra.nextKind);
+
+      const setId = extra.sphereSet?.id ?? "procedural";
+      const key = JSON.stringify(extra.nextKind) + "|" + setId;
       if (key !== this.lastNextKey) {
         this.lastNextKey = key;
-        this.nextBallGfx.clear();
-        if (extra.nextKind) drawBall(this.nextBallGfx, extra.nextKind);
+        this.nextHolder.removeChildren();
+        if (extra.nextKind) {
+          const vis = createBallVisual(extra.nextKind, extra.sphereSet?.colours);
+          this.nextHolder.addChild(vis);
+        }
+      }
+      if (setId !== this.lastSetId) {
+        this.lastSetId = setId;
+        this.setNameText.text = extra.sphereSet
+          ? `set: ${extra.sphereSet.name}`
+          : "set: procedural";
       }
     }
   }

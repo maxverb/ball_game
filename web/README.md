@@ -28,6 +28,7 @@ npm run dev     # http://localhost:5173
 | ↓ / Enter / Space | drop ball |
 | P | pause |
 | M | mute |
+| S | cycle sphere set (real SWING skins) |
 
 ## Tech stack
 
@@ -45,7 +46,10 @@ npm run dev     # http://localhost:5173
   with multiplier lamps, see-saw launch, game over
 - ✅ Uses extracted `.wav` sound effects
 - ✅ Uses extracted `.swg` background for the in-game view
-- ⏳ Ball/crane/see-saw sprites are procedural fallbacks until the
-  `.SET`/`.RES` decoders are finished
+- ✅ Uses extracted sphere-set sprites (6 of 12 fully decoded)
+- ✅ Main menu, sphere-set switcher (S key), level progression,
+  particle effects, screen shake
+- ⏳ Crane/see-saw sprites are procedural fallbacks until the
+  `.RES` decoders are finished
 - ⏳ Music pending — needs DOSBox re-recording to OGG
-- ⏳ Main menu, sphere-set switcher, help screen, level progression
+- ⏳ Help screen (HELPMODE.RES), joystick support

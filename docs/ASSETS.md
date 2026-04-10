@@ -104,40 +104,78 @@ Confirmed fields:
 | `KUGEL9.SET` | `Kontrast` | 0x0F04 | 784 | |
 | `SPLITT.SET` | `Splitt` | 0x0F01 | 784 | |
 
-The per-frame payload has been **partially decoded** — the top 10 rows
-of every sphere are extracted cleanly, the bottom/middle rows still
-resist reverse-engineering. Details:
+**Fully decoded** for 6 of 12 sets. File layout:
 
-- `fileSize - dataLen = 3081` bytes for **every** .SET file — a fixed
-  3081-byte trailer after the frame payload. Its first bytes include the
-  signature `0003 0xE005 0001`, which also appears at the start of
-  `FONTS.RES`, so the trailer is probably a font / atlas / palette
-  helper.
-- Frame payload is approximately `93 × perFrame` bytes. With the
-  `groupCount = 3` header field that's ≈ 31 frames per group,
-  consistent with a ~12° per-step sphere rotation.
-- **Row format for rows 0-9** (the narrowing "cap" of the sphere):
-  ```
-  u16 marker        // almost always 3 for NORMAL/GEOMET/PLASTIC
-  u16 b             // symmetric skip on both left and right sides
-  pixel[frameW - 2*b]  // RGB565 LE, centred at column b
-  u16 marker        // duplicate of the start — closing marker
-  u16 b
-  ```
-  Formula: `pixelsInRow = frameW - 2*b`. Confirmed for every b value in
-  rows 0-9 of every .SET we tested — this gives a decoder that cleanly
-  reads the top 10 rows of frame 0.
-- **Row format for rows 10-19** uses a different encoding we have not
-  yet nailed down. Fixed-stride walks (at 812, 852, 840 bytes) and
-  resync scans all desync before the middle of the sphere. Possibly a
-  column-major or per-layer encoding with interleaved sub-frames.
-- Frame width × height is always 30 × 30.
+```
+0x00..0x13  magic "Gib mir 'ne Kugel\n\0\x1A"
+0x14..0x23  set name, null-padded ASCII
+0x24..0x27  u32 timestamp / hash
+0x28..0x2B  u32 zero
+0x2C..0x2F  u32 dataLen (covers 0x30 → trailer)
+0x30..0x43  20-byte "frame header stamp" (copied before every frame)
+0x44..      interleaved (frame_data, stamp) pairs, 46 pairs for NORMAL
+EOF-3033    3033-byte trailer (a font/atlas helper; embeds the same
+            0x0003 0xE005 0001 signature as FONTS.RES)
+```
 
-`tools/extract-set.mjs` ships the top-10-row decoder and writes a
-`<setname>-top.png` preview for every .SET, plus the average RGB colour
-of that top patch (used to tint the procedural spheres in the web
-game). Full decoding is deferred; **the web game uses procedural sphere
-sprites tinted with the extracted average colours**.
+Per-frame layout (vertically symmetric):
+
+```
+T  headered rows (taper: narrow → wide)
+M  raw full-width rows (the middle)
+T  headered rows (widen → narrow, mirror of the top)
+```
+
+where `T + M + T = frameH = 30`.
+
+Headered row format:
+```
+u16 marker        // always 3 in the sets we decode
+u16 b             // symmetric skip on both sides
+pixel[frameW - 2*b]   // RGB565 LE, centred at column b
+u16 marker        // duplicate of the start header
+u16 b
+```
+Formula: `pixelsInRow = frameW - 2*b`. Confirmed everywhere.
+
+Raw middle rows are `frameW * 2 = 60` bytes each, flat RGB565 LE.
+
+**Decoder strategy** (`tools/extract-set.mjs`):
+1. Count top headered rows `T` until `isPlausibleHeader` fails.
+2. Scan forward byte-by-byte for the first `(3, b_last)` header pair
+   with a matching dup — this is where the bottom half starts. The
+   scan is bounded so false positives can't derail subsequent frames.
+3. Copy the raw bytes between the top and the detected bottom start
+   as raw full-width scanlines.
+4. Decode exactly `T` bottom headered rows.
+5. Skip the 20-byte stamp before the next frame.
+
+| Set | Decoded | Notes |
+|---|---|---|
+| `NORMAL` "standard" | 46/46 | default, fully working |
+| `PLASTIC` "plastic" | 46/46 | |
+| `GEOMET` "Geometrik" | 46/46 | |
+| `KUGEL7` "Glas" | 46/46 | |
+| `KUGEL8` "Formen" | 46/46 | |
+| `SPLITT` "Splitt" | 46/46 | |
+| `KUGEL6` "Atome" | 9/46 | multi-run scanlines (atom orbits) |
+| `KUGEL9` "Kontrast" | 14/46 | similar |
+| `KUGELD` "Juwelen" | 2/46 | |
+| `PEOPLE` "people" | 1/46 | |
+| `KUGELB` "S2000 Team" | 0 | distinct format variant |
+
+For the partially-decoded sets each scanline contains **multiple**
+`(skip, count)` runs with inline pixel triples instead of one symmetric
+edge pair; cracking that layout is a follow-up. The web game only
+exposes the 6 fully-decoded sets in the sphere-set switcher.
+
+`tools/extract-set.mjs` writes:
+- `web/public/assets/sprites/kugeln/<setname>.png` — atlas PNG with up
+  to 46 frames in a 16-col grid (30×30 per frame)
+- `web/public/assets/sprites/kugeln/<setname>-top.png` — 30×10 preview
+  from the first frame (kept as a visual sanity check)
+- `web/public/assets/sprites/kugeln/palette.json` — per-set metadata
+  (name, average RGB, frame count) consumed by the web game at boot.
 
 ## Resources (`GRF/*.RES`)
 

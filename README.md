@@ -37,7 +37,10 @@ Summary of the state today:
 
 - ✅ All 29 `.WAV` sound effects are standard RIFF WAV and are used directly
 - ✅ All 26 `.SWG` backgrounds are raw 640×480 RGB565 and are decoded to PNG
-- 🟡 12 `.SET` sphere-skin files — headers decoded, frame payload WIP
+- ✅ 6 of 12 `.SET` sphere-skin files fully decoded (all 46 frames each) —
+  `standard`, `plastic`, `Geometrik`, `Glas`, `Formen`, `Splitt`. The other
+  5 use a multi-run scanline variant (atom orbits, jewels, people faces)
+  that is WIP
 - 🟡 62 `.RES` resource files — headers decoded, per-subtype payload WIP
 - ❌ 28 `.DMT` music tracks — custom tracker format, plan is DOSBox re-record
 - ❌ `.MOV` videos — empty stubs in this install (`NOVIDEO` mode)
@@ -60,11 +63,13 @@ Summary of the state today:
 - **Match-explosion particles** in the colour of each cleared ball, with
   chain-scaled **screen shake** and a second-chain dreier sound
 - **Star clear** spawns a rainbow confetti burst in the board centre
+- **Original sphere-set sprites** — six fully-decoded SWING sphere sets
+  are bundled as 46-frame atlases; press **S** in-game to cycle
+  through `standard`, `plastic`, `Geometrik`, `Glas`, `Formen`,
+  `Splitt`. Preference is persisted in `localStorage`
 - Original `.wav` sound effects via the Web Audio API
 - `HINTERH.SWG` background behind the playfield
-- Procedural ball/crane/see-saw sprites (will be swapped for extracted
-  art once the `.SET`/`.RES` decoders are complete; the top-10-row
-  decoder is shipping today as a first preview)
+- Procedural crane/see-saw sprites (still WIP)
 
 ## Why a reimplementation and not a port?
 

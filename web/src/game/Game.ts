@@ -31,7 +31,12 @@ import { ParticleSystem } from "./Particles";
 import { stepBall } from "./Physics";
 import { Scoring } from "./Scoring";
 import { SeeSaw } from "./SeeSaw";
-import { BALL_COLOUR_HEX, BALL_RADIUS, createBallWeightLabel, drawBall } from "./sprites";
+import { loadSphereSet, USABLE_SETS, type LoadedSet } from "./SphereSet";
+import {
+  BALL_COLOUR_HEX,
+  BALL_RADIUS,
+  createBallVisual,
+} from "./sprites";
 import {
   BALL_COLOURS,
   type Ball,
@@ -91,6 +96,8 @@ export class Game {
   private rng = Math.random;
   private shakeTime = 0;
   private shakeAmplitude = 0;
+  private sphereSet: LoadedSet | null = null;
+  private sphereSetIndex = 0;
 
   constructor(app: Application) {
     this.app = app;
@@ -151,6 +158,21 @@ export class Game {
 
     await this.audio.init();
     this.highscore = Number(localStorage.getItem(HIGHSCORE_KEY) ?? "0") || 0;
+
+    // Try to load the preferred sphere set, falling back through the list
+    // of decoded ones if the first choice fails.
+    const savedSet = localStorage.getItem("swing-web-sphereset");
+    const preferOrder = savedSet
+      ? [savedSet, ...USABLE_SETS.filter((s) => s !== savedSet)]
+      : USABLE_SETS;
+    for (const id of preferOrder) {
+      const loaded = await loadSphereSet(id);
+      if (loaded) {
+        this.sphereSet = loaded;
+        this.sphereSetIndex = USABLE_SETS.indexOf(id);
+        break;
+      }
+    }
 
     this.showMenu();
 
@@ -372,6 +394,7 @@ export class Game {
       level: this.level,
       nextKind: this.nextKind,
       highscore: this.highscore,
+      sphereSet: this.sphereSet,
     });
   }
 
@@ -392,12 +415,7 @@ export class Game {
       cell: null,
       passedSeeSaw: false,
     };
-    const container = new Container();
-    const gfx = new Graphics();
-    container.addChild(gfx);
-    drawBall(gfx, kind);
-    const label = createBallWeightLabel(kind);
-    if (label) container.addChild(label);
+    const container = createBallVisual(kind, this.sphereSet?.colours);
     this.ballsLayer.addChild(container);
     this.visuals.set(ball.id, container);
     this.crane.hold(ball);
@@ -408,11 +426,10 @@ export class Game {
     const cont = this.visuals.get(ball.id);
     if (!cont) return;
     cont.removeChildren();
-    const gfx = new Graphics();
-    cont.addChild(gfx);
-    drawBall(gfx, ball.kind);
-    const label = createBallWeightLabel(ball.kind);
-    if (label) cont.addChild(label);
+    const replacement = createBallVisual(ball.kind, this.sphereSet?.colours);
+    for (const child of [...replacement.children]) {
+      cont.addChild(child);
+    }
   }
 
   private randomBallKind(): BallKind {
@@ -679,8 +696,31 @@ export class Game {
       this.showPause();
     } else if (k === "m" || k === "M") {
       this.audio.toggleMute();
+    } else if (k === "s" || k === "S") {
+      void this.cycleSphereSet();
     }
   };
+
+  private async cycleSphereSet(): Promise<void> {
+    this.sphereSetIndex = (this.sphereSetIndex + 1) % USABLE_SETS.length;
+    const id = USABLE_SETS[this.sphereSetIndex];
+    const loaded = await loadSphereSet(id);
+    if (!loaded) return;
+    this.sphereSet = loaded;
+    localStorage.setItem("swing-web-sphereset", id);
+    // Repaint every ball on screen with the new textures
+    for (const cont of this.visuals.values()) cont.removeChildren();
+    const heldBall = this.crane.held;
+    if (heldBall) this.refreshVisual(heldBall);
+    for (const b of this.airborne) this.refreshVisual(b);
+    for (let r = 0; r < this.board.rows; r++) {
+      for (let c = 0; c < this.board.cols; c++) {
+        const b = this.board.get(c, r);
+        if (b) this.refreshVisual(b);
+      }
+    }
+    this.audio.play("klack");
+  }
 
   private onKeyUp = (e: KeyboardEvent): void => {
     this.keys.delete(e.key);
