@@ -1,0 +1,22 @@
+{
+  "name": "swing-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Browser reimplementation of SWING (1997, Software 2000)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "pixi.js": "^8.3.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2",
+    "vitest": "^2.0.5"
+  }
+}

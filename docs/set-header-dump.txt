@@ -1,0 +1,17 @@
+SWING sphere-set (.SET) extractor — full-frame decoder
+======================================================
+
+file          name          frames  dataLen  perFrame  avgRGB
+------------------------------------------------------------------------
+GEOMET.SET    "Geometrik   "   46    72954     784    rgb(30,75,32)
+KUGEL6.SET    "Atome       "    9    72532     784    rgb(71,69,31)
+KUGEL7.SET    "Glas        "   46    73048     784    rgb(24,65,12)
+KUGEL8.SET    "Formen      "   46    73048     784    rgb(24,65,12)
+KUGEL9.SET    "Kontrast    "   14    73048     784    rgb(69,161,141)
+KUGELB.SET    "S2000 Team  "    0    75902     815    rgb(0,0,0)
+KUGELD.SET    "Juwelen     "    2    63258     812    rgb(85,154,22)
+MAKE.SET       BAD MAGIC
+NORMAL.SET    "standard    "   46    75624     812    rgb(5,59,90)
+PEOPLE.SET    "people      "    1    74224     825    rgb(53,72,21)
+PLASTIC.SET   "plastic     "   46    75624     812    rgb(0,103,0)
+SPLITT.SET    "Splitt      "   46    73048     784    rgb(57,69,56)
