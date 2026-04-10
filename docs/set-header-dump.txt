@@ -1,25 +1,17 @@
-SWING sphere set (.SET) header analysis
----------------------------------------
-GEOMET.SET    "Geometrik  " 30x30 flags=0xf01 perFrame=784 groups=3 data=72954 total=76035
-    -> decoded 1 candidate frames -> geomet.png
-KUGEL6.SET    "Atome      " 30x30 flags=0xf04 perFrame=784 groups=3 data=72532 total=75613
-    -> decoded 1 candidate frames -> kugel6.png
-KUGEL7.SET    "Glas       " 30x30 flags=0xf04 perFrame=784 groups=3 data=73048 total=76129
-    -> decoded 1 candidate frames -> kugel7.png
-KUGEL8.SET    "Formen     " 30x30 flags=0xf04 perFrame=784 groups=3 data=73048 total=76129
-    -> decoded 1 candidate frames -> kugel8.png
-KUGEL9.SET    "Kontrast   " 30x30 flags=0xf04 perFrame=784 groups=3 data=73048 total=76129
-    -> decoded 1 candidate frames -> kugel9.png
-KUGELB.SET    "S2000 Team " 30x30 flags=0xf04 perFrame=815 groups=3 data=75902 total=78983
-    -> decoded 1 candidate frames -> kugelb.png
-KUGELD.SET    "Juwelen    " 30x30 flags=0xf04 perFrame=812 groups=3 data=63258 total=66339
-    -> decoded 1 candidate frames -> kugeld.png
-MAKE.SET: BAD MAGIC
-NORMAL.SET    "standard   " 30x30 flags=0xf01 perFrame=812 groups=3 data=75624 total=78705
-    -> decoded 1 candidate frames -> normal.png
-PEOPLE.SET    "people     " 30x30 flags=0xf01 perFrame=825 groups=3 data=74224 total=77305
-    -> decoded 1 candidate frames -> people.png
-PLASTIC.SET   "plastic    " 30x30 flags=0xf01 perFrame=812 groups=3 data=75624 total=78705
-    -> decoded 1 candidate frames -> plastic.png
-SPLITT.SET    "Splitt     " 30x30 flags=0xf01 perFrame=784 groups=3 data=73048 total=76129
-    -> decoded 1 candidate frames -> splitt.png
+SWING sphere-set (.SET) extractor — top-10-row preview
+======================================================
+
+file          name          rows  flags   perFrame  avgRGB
+----------------------------------------------------------------
+GEOMET.SET    "Geometrik   "  10  0x0f01   784    rgb(41,80,53)
+KUGEL6.SET    "Atome       "  10  0x0f04   784    rgb(93,76,41)
+KUGEL7.SET    "Glas        "  10  0x0f04   784    rgb(34,64,26)
+KUGEL8.SET    "Formen      "  10  0x0f04   784    rgb(34,64,26)
+KUGEL9.SET    "Kontrast    "  10  0x0f04   784    rgb(82,184,168)
+KUGELB.SET    "S2000 Team  "   0  0x0f04   815    rgb(49,137,107)
+KUGELD.SET    "Juwelen     "  10  0x0f04   812    rgb(91,170,37)
+MAKE.SET       BAD MAGIC
+NORMAL.SET    "standard    "  10  0x0f01   812    rgb(10,72,129)
+PEOPLE.SET    "people      "  10  0x0f01   825    rgb(92,84,28)
+PLASTIC.SET   "plastic     "  10  0x0f01   812    rgb(1,126,0)
+SPLITT.SET    "Splitt      "  10  0x0f01   784    rgb(80,70,79)

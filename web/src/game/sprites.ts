@@ -18,6 +18,9 @@ const COLOUR_HEX: Record<BallColour, number> = {
   orange: 0xe89a3c,
 };
 
+/** Public map so other modules (particles, HUD) can match sphere colours. */
+export const BALL_COLOUR_HEX: Record<BallColour, number> = COLOUR_HEX;
+
 const COLOUR_SHADE: Record<BallColour, number> = {
   red: 0x8a1e16,
   yellow: 0x8c7410,

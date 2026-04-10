@@ -1,68 +1,69 @@
 #!/usr/bin/env node
-// Analyzer + best-effort extractor for KUGELN/*.SET sphere-skin files.
+// Best-effort decoder for SWING sphere-set files (KUGELN/*.SET).
 //
-// Header layout confirmed across NORMAL / GEOMET / PLASTIC / PEOPLE /
-// KUGEL6..9 / KUGELB / KUGELD / SPLITT:
-//
-//   0x00..0x13  magic "Gib mir 'ne Kugel\n\0\x1A"     (20 bytes)
-//   0x14..0x23  set name, null-padded ASCII           (16 bytes)
-//                 e.g. "standard", "Geometrik", "plastic", "Atome"
-//   0x24..0x27  u32  timestamp / hash
+// Header (68 bytes):
+//   0x00..0x13  magic "Gib mir 'ne Kugel\n\0\x1A"
+//   0x14..0x23  set name, null-padded ASCII
+//   0x24..0x27  u32  timestamp/hash
 //   0x28..0x2B  u32  zero
-//   0x2C..0x2F  u32  dataLen (covers 0x30 .. 0x30+dataLen-1)
-//   0x30..0x31  u16  0x0014   (header size marker)
-//   0x32..0x33  u16  flags    (0x0F01 or 0x0F04)
-//   0x34..0x35  u16  frameW   = 30
-//   0x36..0x37  u16  frameH   = 30
-//   0x38..0x3B  u32  perFrame (≈ 812 or 784 — per-frame byte slot size)
-//   0x3C..0x3F  u32  always 3 (likely the number of "groups", maybe
-//                             colour groups that each cycle 31 frames)
+//   0x2C..0x2F  u32  dataLen
+//   0x30..0x31  u16  0x0014 marker
+//   0x32..0x33  u16  flags (0x0F01 or 0x0F04)
+//   0x34..0x35  u16  frameW (30)
+//   0x36..0x37  u16  frameH (30)
+//   0x38..0x3B  u32  perFrame (812 or 784, avg bytes/frame)
+//   0x3C..0x3F  u32  groupCount (3)
 //   0x40..0x43  u32  zero
-//   0x44..      RLE frame payload
+//   0x44..      frame payload
 //
-// Additional structure we worked out but have not fully decoded:
+// Payload (partial understanding):
 //
-// * `fileSize - dataLen = 3081` bytes for EVERY .SET — there's a fixed
-//   3081-byte secondary resource after the frame payload. Its content
-//   starts with more RLE-looking data and contains the signature
-//   `0003 0xE005 0001` which also appears at the start of FONTS.RES, so
-//   we suspect it is a bitmap font or a helper atlas.
-// * `dataLen - (0x44 - 0x30)` ≈ 93 × 812 for NORMAL → each set holds
-//   ~93 frames. For a 3-group layout that's 31 frames per group, which
-//   is consistent with a smooth 360° sphere rotation at ~11.6°/step.
-// * Per-row RLE uses `(u16 leftSkip, u16 count)` headers but multiple
-//   runs per scanline — each scanline appears to be encoded as
-//   `headerA, headerB, pixels[...]` with header pairs describing both
-//   the left edge and a second interior run. We have not nailed the
-//   exact layout yet and it varies subtly between `0x0F01` and `0x0F04`
-//   flag variants.
+//   Rows 0..9 of every frame are encoded as:
+//     u16 leftMarker (almost always 3)
+//     u16 b           (symmetric skip on both sides)
+//     pixel[frameW - 2*b] (RGB565 LE, centred at col b)
+//     u16 leftMarker  (DUPLICATE of the start header)
+//     u16 b
 //
-// Until the full decoder is in place this tool:
-//   1. validates the header,
-//   2. writes `docs/set-header-dump.txt` with everything we know,
-//   3. emits a best-effort sprite-sheet PNG per set — the game falls
-//      back to procedural sphere sprites when these PNGs are partial.
+//   This decodes cleanly for rows 0..9 of frame 0 on every .SET I tried.
+//   See docs/ASSETS.md for the formula derivation.
+//
+//   Rows 10..19 (the widest middle of the sphere) use a DIFFERENT layout
+//   that does not match `(skip, b)` header pairs, and I was not able to
+//   nail it down in a reasonable amount of time. The same applies to
+//   frame boundaries — frames aren't stored at a fixed stride.
+//
+// What this tool actually ships today:
+//   * Parses and prints the header for every .SET (the quickest way to
+//     sanity-check the dataset).
+//   * Decodes the **top 10 rows of frame 0** for every .SET and writes
+//     them to a 11-sprite strip PNG in
+//     `web/public/assets/sprites/kugeln/`. Each preview is 30×10 and
+//     makes the original ball colours + shading visually recognisable,
+//     which is what the web game samples for its procedural spheres.
+//   * Writes the analysis to `docs/set-header-dump.txt`.
 
-import { readFileSync, writeFileSync, readdirSync, mkdirSync } from "node:fs";
-import { join, dirname, basename } from "node:path";
+import { readFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { encodePng, rgb565ToRgba } from "./png.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SRC = join(here, "..", "SWING", "KUGELN");
-const SPRITE_DST = join(here, "..", "web", "public", "assets", "sprites", "kugeln");
+const DST = join(here, "..", "web", "public", "assets", "sprites", "kugeln");
 const DOC = join(here, "..", "docs", "set-header-dump.txt");
 
-mkdirSync(SPRITE_DST, { recursive: true });
+mkdirSync(DST, { recursive: true });
 mkdirSync(dirname(DOC), { recursive: true });
 
 const MAGIC = Buffer.from("Gib mir 'ne Kugel\n\0\x1A", "binary");
+const TOP_ROWS = 10;
 
-const lines = [];
-function log(s) {
-  lines.push(s);
+const docLines = [];
+const log = (s) => {
+  docLines.push(s);
   console.log(s);
-}
+};
 
 function readCString(buf, off, max) {
   let end = off;
@@ -70,128 +71,111 @@ function readCString(buf, off, max) {
   return buf.slice(off, end).toString("ascii");
 }
 
-function parse(setPath) {
-  const buf = readFileSync(setPath);
-  const name = basename(setPath);
-
-  if (buf.slice(0, MAGIC.length).compare(MAGIC) !== 0) {
-    log(`${name}: BAD MAGIC`);
-    return null;
-  }
-
-  const setName = readCString(buf, 0x14, 16);
-  const header = {
-    name: setName,
-    hash: buf.readUInt32LE(0x24).toString(16),
+function parseHeader(buf) {
+  if (buf.slice(0, MAGIC.length).compare(MAGIC) !== 0) return null;
+  return {
+    name: readCString(buf, 0x14, 16),
     dataLen: buf.readUInt32LE(0x2c),
-    headerMarker: buf.readUInt16LE(0x30),
-    flags: buf.readUInt16LE(0x32).toString(16),
+    flags: buf.readUInt16LE(0x32),
     frameW: buf.readUInt16LE(0x34),
     frameH: buf.readUInt16LE(0x36),
     perFrame: buf.readUInt32LE(0x38),
-    groupCount: buf.readUInt32LE(0x3c),
-    fileSize: buf.length,
-    payloadStart: 0x44,
+    groups: buf.readUInt32LE(0x3c),
   };
-  log(
-    `${name.padEnd(13)} "${setName.padEnd(11)}" ` +
-      `${header.frameW}x${header.frameH} ` +
-      `flags=0x${header.flags} perFrame=${header.perFrame} ` +
-      `groups=${header.groupCount} data=${header.dataLen} total=${header.fileSize}`,
-  );
-  return { buf, header };
 }
 
-// Best-effort payload walker. It treats every scanline as
-//   u16 x_skip, u16 draw_count, pixels[draw_count * 2 bytes each].
-// If the stream desyncs (which it might for frame separators we don't
-// understand yet) we stop and emit whatever we decoded so the user can
-// visually eyeball the result.
-function decodePayload(buf, header, maxFrames = 96) {
-  const { frameW, frameH, payloadStart } = header;
-  const frames = [];
-  let p = payloadStart;
-  const limit = buf.length - 4;
-
-  for (let f = 0; f < maxFrames && p < limit; f++) {
-    const frame = new Uint8Array(frameW * frameH * 2); // filled 0 = transparent
-    let y = 0;
-    let decodedAny = false;
-    while (y < frameH && p + 4 <= buf.length) {
-      const x = buf.readUInt16LE(p);
-      const w = buf.readUInt16LE(p + 2);
-      p += 4;
-      if (w === 0) {
-        // empty scanline -> advance y only
-        y++;
-        continue;
-      }
-      if (x + w > frameW || p + w * 2 > buf.length) {
-        // desync: back off by 4 and break out of this frame
-        p -= 4;
-        break;
-      }
-      for (let i = 0; i < w; i++) {
-        const off = (y * frameW + x + i) * 2;
-        frame[off] = buf[p + i * 2];
-        frame[off + 1] = buf[p + i * 2 + 1];
-      }
-      p += w * 2;
-      decodedAny = true;
-      y++;
+/**
+ * Decode up to `maxRows` rows of a single frame starting at `startOff`.
+ * Bails cleanly on desync. Returns the pixel buffer (16bpp LE) plus the
+ * number of rows that actually decoded and the byte offset where the
+ * decoder stopped.
+ */
+function decodeTopRows(buf, startOff, frameW, maxRows) {
+  const pixels = new Uint8Array(frameW * maxRows * 2);
+  let p = startOff;
+  let rows = 0;
+  for (let y = 0; y < maxRows; y++) {
+    if (p + 4 > buf.length) break;
+    const a = buf.readUInt16LE(p);
+    const b = buf.readUInt16LE(p + 2);
+    // Validity: a < frameW, b <= frameW/2
+    if (a >= frameW || b > frameW / 2) break;
+    p += 4;
+    const width = frameW - 2 * b;
+    if (width < 0 || p + width * 2 > buf.length) break;
+    for (let i = 0; i < width; i++) {
+      const dst = (y * frameW + b + i) * 2;
+      pixels[dst] = buf[p + i * 2];
+      pixels[dst + 1] = buf[p + i * 2 + 1];
     }
-    if (!decodedAny) break;
-    frames.push(frame);
-    // skip any padding bytes until we see a plausible new strip header
-    // (payloads of adjacent frames appear contiguous in our samples).
+    p += width * 2;
+    if (p + 4 > buf.length) break;
+    const a2 = buf.readUInt16LE(p);
+    const b2 = buf.readUInt16LE(p + 2);
+    if (a2 !== a || b2 !== b) break;
+    p += 4;
+    rows++;
   }
-  return frames;
+  return { pixels, rows, nextOff: p };
 }
 
-function writeSheet(frames, header, pngPath) {
-  if (frames.length === 0) return;
-  const cols = Math.min(12, frames.length);
-  const rows = Math.ceil(frames.length / cols);
-  const w = cols * header.frameW;
-  const h = rows * header.frameH;
-  const rgba = new Uint8Array(w * h * 4);
-  // init transparent
-  rgba.fill(0);
-  for (let i = 0; i < frames.length; i++) {
-    const cx = (i % cols) * header.frameW;
-    const cy = Math.floor(i / cols) * header.frameH;
-    const frameRgba = rgb565ToRgba(frames[i], header.frameW, header.frameH, {
-      transparentColor: 0,
-    });
-    for (let y = 0; y < header.frameH; y++) {
-      for (let x = 0; x < header.frameW; x++) {
-        const s = (y * header.frameW + x) * 4;
-        const d = ((cy + y) * w + cx + x) * 4;
-        rgba[d + 0] = frameRgba[s + 0];
-        rgba[d + 1] = frameRgba[s + 1];
-        rgba[d + 2] = frameRgba[s + 2];
-        rgba[d + 3] = frameRgba[s + 3];
-      }
-    }
+/** Compute the average RGB of a 16bpp pixel buffer (skipping zeros). */
+function averageColor(pixels) {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let n = 0;
+  for (let i = 0; i < pixels.length; i += 2) {
+    const v = (pixels[i + 1] << 8) | pixels[i];
+    if (v === 0) continue;
+    r += ((v >> 11) & 0x1f) << 3;
+    g += ((v >> 5) & 0x3f) << 2;
+    b += (v & 0x1f) << 3;
+    n++;
   }
-  writeFileSync(pngPath, encodePng(w, h, rgba));
+  if (n === 0) return [0, 0, 0];
+  return [Math.round(r / n), Math.round(g / n), Math.round(b / n)];
 }
 
-log("SWING sphere set (.SET) header analysis");
-log("---------------------------------------");
+log("SWING sphere-set (.SET) extractor — top-10-row preview");
+log("======================================================");
+log("");
+log(
+  "file".padEnd(14) +
+    "name".padEnd(14) +
+    "rows  flags   perFrame  avgRGB",
+);
+log("-".repeat(64));
 
 const setFiles = readdirSync(SRC)
   .filter((f) => f.toUpperCase().endsWith(".SET"))
   .sort();
 
 for (const f of setFiles) {
-  const parsed = parse(join(SRC, f));
-  if (!parsed) continue;
-  const frames = decodePayload(parsed.buf, parsed.header);
-  const pngPath = join(SPRITE_DST, f.toLowerCase().replace(".set", ".png"));
-  writeSheet(frames, parsed.header, pngPath);
-  log(`    -> decoded ${frames.length} candidate frames -> ${basename(pngPath)}`);
+  const buf = readFileSync(join(SRC, f));
+  const header = parseHeader(buf);
+  if (!header) {
+    log(`${f.padEnd(14)} BAD MAGIC`);
+    continue;
+  }
+  const { pixels, rows } = decodeTopRows(buf, 0x44, header.frameW, TOP_ROWS);
+  const rgba = rgb565ToRgba(pixels, header.frameW, TOP_ROWS, { transparentColor: 0 });
+  const png = encodePng(header.frameW, TOP_ROWS, rgba);
+  const name = f.toLowerCase().replace(".set", "-top.png");
+  writeFileSync(join(DST, name), png);
+  const avg = averageColor(pixels);
+  log(
+    `${f.padEnd(14)}"${header.name.trim().padEnd(12)}" ${rows
+      .toString()
+      .padStart(3)}  0x${header.flags
+      .toString(16)
+      .padStart(4, "0")}  ${header.perFrame
+      .toString()
+      .padStart(4)}    rgb(${avg[0]},${avg[1]},${avg[2]})`,
+  );
 }
 
-writeFileSync(DOC, lines.join("\n") + "\n");
-log(`\nWrote header analysis to ${DOC}`);
+writeFileSync(DOC, docLines.join("\n") + "\n");
+log("");
+log(`Wrote header analysis to ${DOC}`);
+log(`Wrote top-row previews to ${DST}`);

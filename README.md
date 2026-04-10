@@ -52,14 +52,19 @@ Summary of the state today:
 - **Scoring** with 2×/3×/4× "Bonus" multiplier lamps
 - **Heart** → bomb wrap-around + **silver-star** triple → board clear
 - **Level progression** every 8 cleared matches, with a "level up" chime
+  and an upward confetti burst
 - **Next-ball preview** in the HUD
 - **High score** persisted in `localStorage`
 - **Pause** (P) and **mute** (M) with on-screen overlay
 - **Game over** screen with restart prompt
+- **Match-explosion particles** in the colour of each cleared ball, with
+  chain-scaled **screen shake** and a second-chain dreier sound
+- **Star clear** spawns a rainbow confetti burst in the board centre
 - Original `.wav` sound effects via the Web Audio API
 - `HINTERH.SWG` background behind the playfield
 - Procedural ball/crane/see-saw sprites (will be swapped for extracted
-  art once the `.SET`/`.RES` decoders are complete)
+  art once the `.SET`/`.RES` decoders are complete; the top-10-row
+  decoder is shipping today as a first preview)
 
 ## Why a reimplementation and not a port?
 

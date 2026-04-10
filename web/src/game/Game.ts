@@ -27,10 +27,11 @@ import { HUD } from "../ui/HUD";
 import { BOARD_COLS, BOARD_ROWS, Board } from "./Board";
 import { Crane } from "./Crane";
 import { heartWrappedOut, rollExtra } from "./Extras";
+import { ParticleSystem } from "./Particles";
 import { stepBall } from "./Physics";
 import { Scoring } from "./Scoring";
 import { SeeSaw } from "./SeeSaw";
-import { BALL_RADIUS, createBallWeightLabel, drawBall } from "./sprites";
+import { BALL_COLOUR_HEX, BALL_RADIUS, createBallWeightLabel, drawBall } from "./sprites";
 import {
   BALL_COLOURS,
   type Ball,
@@ -72,6 +73,7 @@ export class Game {
   private readonly backgroundSprite = new Sprite();
   private readonly craneGraphic = new Graphics();
   private readonly seeSawGraphic = new Graphics();
+  private readonly particles = new ParticleSystem();
 
   /** Balls currently in flight (not held, not settled). */
   private readonly airborne: Ball[] = [];
@@ -87,6 +89,8 @@ export class Game {
   private readonly keys = new Set<string>();
   private moveCooldown = 0;
   private rng = Math.random;
+  private shakeTime = 0;
+  private shakeAmplitude = 0;
 
   constructor(app: Application) {
     this.app = app;
@@ -137,6 +141,7 @@ export class Game {
     this.worldLayer.addChild(this.craneGraphic);
     this.worldLayer.addChild(this.ballsLayer);
     this.worldLayer.addChild(this.fxLayer);
+    this.worldLayer.addChild(this.particles.root);
     this.app.stage.addChild(this.worldLayer);
 
     this.hud.root.position.set(HUD_X, BOARD_ORIGIN_Y - 2);
@@ -277,6 +282,9 @@ export class Game {
     if (this.menuBlink) {
       this.menuBlink.alpha = 0.5 + Math.sin(performance.now() / 250) * 0.5;
     }
+    // Particles animate even when paused so they gracefully finish
+    this.particles.update(dt);
+    this.updateShake(dt);
     if (this.state !== "playing") return;
 
     this.scoring.tick(dt);
@@ -474,23 +482,42 @@ export class Game {
       const remaining = this.board.countWhere(() => true);
       this.scoring.registerStarClear(remaining);
       this.linesCleared += remaining;
+      // Big burst in the middle of the board + heavy shake
+      this.particles.confetti(
+        BOARD_ORIGIN_X + BOARD_W / 2,
+        BOARD_ORIGIN_Y + BOARD_H / 2,
+        80,
+        [0xffffff, 0xffd060, 0xa3d0ff, 0xff8080, 0x90ffa0],
+      );
+      this.triggerShake(12, 0.5);
       this.clearEntireBoard();
     }
 
     let safety = 0;
+    let chain = 0;
     while (safety++ < 6) {
       const matched = this.board.findMatches();
       if (matched.size === 0) break;
-      this.audio.play("dreier");
+      chain++;
+      this.audio.play(chain > 1 ? "dreier2" : "dreier");
       let weightSum = 0;
       for (const key of matched) {
         const [cs, rs] = key.split(",");
         const c = Number(cs);
         const r = Number(rs);
         const b = this.board.get(c, r);
-        if (b && b.kind.kind === "regular") weightSum += b.kind.weight;
         if (b) {
+          // burst particles in the ball's colour
           const cont = this.visuals.get(b.id);
+          const colour =
+            b.kind.kind === "regular" ? BALL_COLOUR_HEX[b.kind.colour] : 0xffffff;
+          this.particles.burst(b.x, b.y, 10, {
+            colors: [colour, 0xffffff],
+            speed: 120,
+            life: 0.55,
+            size: 3,
+          });
+          if (b.kind.kind === "regular") weightSum += b.kind.weight;
           if (cont) cont.destroy({ children: true });
           this.visuals.delete(b.id);
         }
@@ -498,6 +525,7 @@ export class Game {
       }
       this.scoring.registerDreier(matched.size, weightSum);
       this.linesCleared++;
+      this.triggerShake(3 + chain * 2, 0.2 + chain * 0.05);
       this.applyGravity();
     }
 
@@ -506,6 +534,12 @@ export class Game {
     if (targetLevel > this.level) {
       this.level = targetLevel;
       this.audio.play("huhu");
+      this.particles.confetti(
+        BOARD_ORIGIN_X + BOARD_W / 2,
+        BOARD_ORIGIN_Y + 40,
+        60,
+        [0xffd060, 0xffffff, 0xf29046, 0xe04a3a],
+      );
     }
 
     if (this.scoring.score > this.highscore) {
@@ -660,5 +694,27 @@ export class Game {
     ball.passedSeeSaw = false;
     this.airborne.push(ball);
     this.spawnNextBall();
+  }
+
+  // ------------------------------------------------------------------ fx
+  private triggerShake(amplitude: number, duration: number): void {
+    this.shakeAmplitude = Math.max(this.shakeAmplitude, amplitude);
+    this.shakeTime = Math.max(this.shakeTime, duration);
+  }
+
+  private updateShake(dt: number): void {
+    if (this.shakeTime > 0) {
+      this.shakeTime -= dt;
+      const t = Math.max(0, this.shakeTime);
+      const amp = this.shakeAmplitude * t;
+      this.worldLayer.position.set(
+        (Math.random() - 0.5) * amp,
+        (Math.random() - 0.5) * amp,
+      );
+      if (this.shakeTime <= 0) {
+        this.worldLayer.position.set(0, 0);
+        this.shakeAmplitude = 0;
+      }
+    }
   }
 }
